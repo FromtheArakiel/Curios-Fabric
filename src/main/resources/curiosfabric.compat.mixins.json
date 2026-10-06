@@ -1,0 +1,25 @@
+{
+  "required": false,
+  "package": "dev.arakiel.curios.compat.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "dev.arakiel.curios.compat.CompatMixinPlugin",
+  "mixins": [
+    "forge.ForgeCuriosApiHooksMixin",
+    "forge.ForgeCuriosClientMixin",
+    "forge.ForgeCuriosModMixin",
+    "forge.ForgeCuriosRegistryMixin",
+    "forge.NeoForgeEffectProbeMixin",
+    "neoforge.NeoForgeEffectApplicableMixin",
+    "trinkets.TrinketCreativeSlotMixin",
+    "trinkets.TrinketComponentMixin",
+    "trinkets.TrinketInventorySlotMixin",
+    "trinkets.TrinketScreenManagerMixin",
+    "trinkets.TrinketSlotAccessor",
+    "trinkets.TrinketsApiMixin",
+    "trinkets.TrinketsClientMixin"
+  ],
+  "client": [
+    "client.MinecraftForeignScreensMixin"
+  ],
+  "minVersion": "0.8"
+}

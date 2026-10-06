@@ -1,0 +1,5 @@
+﻿{
+  "order": 160,
+  "icon": "curiosfabric:slot/empty_ring_slot",
+  "validators": ["curiosfabric:tag"]
+}

@@ -1,0 +1,5 @@
+﻿{
+  "order": 180,
+  "icon": "curiosfabric:slot/empty_belt_slot",
+  "validators": ["curiosfabric:tag"]
+}

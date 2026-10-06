@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.arakiel.curios.mixin.core",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AccessorEntity",
+    "MixinCuriosTriggers",
+    "MixinCuriosTriggersEquip"
+  ],
+  "minVersion": "0.8"
+}

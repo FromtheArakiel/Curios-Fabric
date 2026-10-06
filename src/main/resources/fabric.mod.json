@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": [
+    "${mod_authors}"
+  ],
+  "license": "${mod_license}",
+  "icon": "curios_icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.arakiel.curios.Curios"
+    ],
+    "client": [
+      "dev.arakiel.curios.CuriosClient"
+    ],
+    "jei_mod_plugin": [
+      "dev.arakiel.curios.common.integration.jei.CuriosJeiPlugin"
+    ],
+    "curios": []
+  },
+  "mixins": [
+    "curios.mixins.json",
+    "curios.fabric.mixins.json",
+    "curiosfabric.compat.mixins.json"
+  ],
+  "accessWidener": "curios.accesswidener",
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "jei": "*"
+  }
+}

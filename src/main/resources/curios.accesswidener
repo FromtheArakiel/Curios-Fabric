@@ -1,0 +1,45 @@
+accessWidener	v2	named
+
+# Curios draws its own inventory tab next to the vanilla one and drives the
+# quick craft logic, so a few otherwise private fields and methods have to be
+# visible. Converted from the NeoForge access transformer of the original.
+
+accessible	field	net/minecraft/client/gui/screens/inventory/InventoryScreen	xMouse	F
+accessible	field	net/minecraft/client/gui/screens/inventory/InventoryScreen	yMouse	F
+
+accessible	field	net/minecraft/client/gui/screens/inventory/CreativeModeInventoryScreen	destroyItemSlot	Lnet/minecraft/world/inventory/Slot;
+accessible	field	net/minecraft/client/gui/screens/recipebook/RecipeBookComponent	tabButtons	Ljava/util/List;
+
+accessible	field	net/minecraft/world/inventory/AbstractContainerMenu	lastSlots	Lnet/minecraft/core/NonNullList;
+accessible	field	net/minecraft/world/inventory/AbstractContainerMenu	remoteSlots	Lnet/minecraft/core/NonNullList;
+accessible	field	net/minecraft/world/inventory/AbstractContainerMenu	menuType	Lnet/minecraft/world/inventory/MenuType;
+accessible	field	net/minecraft/world/inventory/AbstractContainerMenu	containerId	I
+mutable	field	net/minecraft/world/inventory/AbstractContainerMenu	menuType	Lnet/minecraft/world/inventory/MenuType;
+mutable	field	net/minecraft/world/inventory/AbstractContainerMenu	containerId	I
+
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	clickedSlot	Lnet/minecraft/world/inventory/Slot;
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	isSplittingStack	Z
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	draggingItem	Lnet/minecraft/world/item/ItemStack;
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	quickCraftingType	I
+
+accessible	field	net/minecraft/client/gui/screens/Screen	narratables	Ljava/util/List;
+accessible	field	net/minecraft/client/gui/screens/Screen	children	Ljava/util/List;
+accessible	field	net/minecraft/client/gui/screens/Screen	renderables	Ljava/util/List;
+accessible	field	net/minecraft/client/gui/screens/Screen	minecraft	Lnet/minecraft/client/Minecraft;
+
+# NeoForge exposes AbstractContainerScreen#getGuiLeft/getGuiTop; the vanilla fields are protected.
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	leftPos	I
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	topPos	I
+
+accessible	method	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	findSlot	(DD)Lnet/minecraft/world/inventory/Slot;
+accessible	method	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	recalculateQuickCraftRemaining	()V
+
+# Curios registers its own entity selector option (?curios={...}) and its own
+# menu type; both are package private / private in vanilla.
+accessible	method	net/minecraft/commands/arguments/selector/options/EntitySelectorOptions	register	(Ljava/lang/String;Lnet/minecraft/commands/arguments/selector/options/EntitySelectorOptions$Modifier;Ljava/util/function/Predicate;Lnet/minecraft/network/chat/Component;)V
+accessible	class	net/minecraft/world/inventory/MenuType$MenuSupplier
+accessible	method	net/minecraft/world/inventory/MenuType	<init>	(Lnet/minecraft/world/inventory/MenuType$MenuSupplier;Lnet/minecraft/world/flag/FeatureFlagSet;)V
+
+# Registers an argument type into the vanilla map of "class to argument info" as well as the
+# registry, which is what makes the /curios command arguments serializable to clients.
+accessible	method	net/minecraft/commands/synchronization/ArgumentTypeInfos	register	(Lnet/minecraft/core/Registry;Ljava/lang/String;Ljava/lang/Class;Lnet/minecraft/commands/synchronization/ArgumentTypeInfo;)Lnet/minecraft/commands/synchronization/ArgumentTypeInfo;

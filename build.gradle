@@ -1,0 +1,81 @@
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = "${mod_id}-fabric-${minecraft_version}"
+}
+
+loom {
+	accessWidenerPath = file('src/main/resources/curios.accesswidener')
+}
+
+// Third-party mod jars are supplied from the local "libs" folder so the project
+// stays buildable without extra remote maven repositories.
+def localMod = { String name -> files("libs/${name}") }
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Annotations that the upstream sources use but that Minecraft does not ship.
+	compileOnly 'org.jetbrains:annotations:24.1.0'
+	compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+
+	// Optional integration targets: compiled against, never required at runtime.
+	modCompileOnly localMod("jei-1.21.1-fabric-${project.jei_version}.jar")
+}
+
+processResources {
+	def props = [
+			version          : project.mod_version,
+			minecraft_version: project.minecraft_version,
+			mod_id           : project.mod_id,
+			mod_name         : project.mod_name,
+			mod_description  : project.mod_description,
+			mod_authors      : project.mod_authors,
+			mod_license      : project.mod_license
+	]
+	inputs.properties props
+
+	filesMatching('fabric.mod.json') {
+		expand props
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+	it.options.encoding = 'UTF-8'
+	// Curios intentionally keeps the same deprecated-but-still-shipped API surface as the NeoForge
+	// edition (SlotTypeMessage, ICuriosHelper, ISlotHelper, IIconHelper, ...) and uses parts of it
+	// internally, exactly like upstream does. The resulting [removal] notes are therefore expected
+	// and not actionable, so that one lint key is turned off instead of spraying suppressions.
+	it.options.compilerArgs += ['-Xlint:-removal']
+}
+
+java {
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+publishing {
+	publications {
+		create('mavenJava', MavenPublication) {
+			from components.java
+		}
+	}
+	repositories {
+	}
+}
