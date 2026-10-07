@@ -62,7 +62,6 @@ import dev.arakiel.curios.common.network.server.sync.SPacketSyncModifiers;
 import dev.arakiel.curios.common.network.server.sync.SPacketSyncRender;
 import dev.arakiel.curios.common.network.server.sync.SPacketSyncStack;
 import dev.arakiel.curios.server.command.CurioArgumentType;
-import dev.arakiel.curios.compat.Diag;
 
 public class CuriosClientPackets {
 
@@ -246,14 +245,7 @@ public class CuriosClientPackets {
     if (world != null) {
       Entity entity = world.getEntity(data.entityId);
 
-      if (!(entity instanceof LivingEntity)) {
-        Diag.once("sync-miss:" + data.entityId,
-            "SPacketSyncCurios for entity {} was dropped: the entity is not on the client yet "
-                + "(entries={})", data.entityId, data.map.size());
-      }
       if (entity instanceof LivingEntity) {
-        Diag.once("sync:" + data.entityId,
-            "SPacketSyncCurios applied for entity {} (entries={})", data.entityId, data.map.size());
         CuriosApi.getCuriosInventory((LivingEntity) entity)
             .ifPresent(
                 handler -> {

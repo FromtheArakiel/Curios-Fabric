@@ -106,7 +106,10 @@ public class NetworkHandler {
 
   /** Sends a payload to a single player. */
   public static void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
-    ServerPlayNetworking.send(player, payload);
+
+    if (canReceive(player, payload)) {
+      ServerPlayNetworking.send(player, payload);
+    }
   }
 
   /**
@@ -130,7 +133,28 @@ public class NetworkHandler {
     }
 
     for (ServerPlayer player : targets) {
-      ServerPlayNetworking.send(player, payload);
+
+      if (canReceive(player, payload)) {
+        ServerPlayNetworking.send(player, payload);
+      }
+    }
+  }
+
+  /**
+   * {@code true} when the player's client is able to receive this payload.
+   *
+   * <p>Sending a payload the client has not declared throws. Because some of the syncs are triggered
+   * from the player join sequence - where the client only finishes the channel handshake once it
+   * receives the login packet - an unguarded send aborts the join and shows up as a connection
+   * failure. Checking first turns such a send into a harmless no-op; the regular sync sends it
+   * again.</p>
+   */
+  private static boolean canReceive(ServerPlayer player, CustomPacketPayload payload) {
+
+    try {
+      return player.connection != null && ServerPlayNetworking.canSend(player, payload.type());
+    } catch (Throwable throwable) {
+      return false;
     }
   }
 }

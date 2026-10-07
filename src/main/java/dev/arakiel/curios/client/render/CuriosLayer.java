@@ -15,7 +15,6 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with Curios.  If not, see <https://www.gnu.org/licenses/>.
- *
  */
 
 package dev.arakiel.curios.client.render;
@@ -33,7 +32,6 @@ import dev.arakiel.curios.api.CuriosApi;
 import dev.arakiel.curios.api.SlotContext;
 import dev.arakiel.curios.api.client.CuriosRendererRegistry;
 import dev.arakiel.curios.api.type.inventory.IDynamicStackHandler;
-import dev.arakiel.curios.compat.Diag;
 
 public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> extends
     RenderLayer<T, M> {
@@ -50,8 +48,6 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                      int light, @Nonnull T livingEntity, float limbSwing, float limbSwingAmount,
                      float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
     matrixStack.pushPose();
-    Diag.once("layer:" + livingEntity.getType(),
-        "the curios render layer runs for {}", livingEntity.getType());
     CuriosApi.getCuriosInventory(livingEntity)
         .ifPresent(handler -> handler.getCurios().forEach((id, stacksHandler) -> {
           IDynamicStackHandler stackHandler = stacksHandler.getStacks();
@@ -71,13 +67,6 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
             if (!stack.isEmpty()) {
               SlotContext slotContext = new SlotContext(id, livingEntity, i, cosmetic, renderable);
               ItemStack finalStack = stack;
-              String itemId =
-                  net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem())
-                      .toString();
-              Diag.once("seen:" + id + ":" + itemId,
-                  "curio slot {} holds {} (cosmetic={}, renderable={})", id, itemId, cosmetic,
-                  renderable);
-              boolean rendered = false;
 
               if (CuriosRendererRegistry.getRenderer(stack.getItem()).isPresent()) {
                 CuriosRendererRegistry.getRenderer(stack.getItem()).ifPresent(
@@ -85,34 +74,21 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                         .render(finalStack, slotContext, matrixStack, renderLayerParent,
                             renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
                             ageInTicks, netHeadYaw, headPitch));
-                rendered = true;
-                Diag.once("own-renderer:" + itemId,
-                    "{} is drawn by a renderer registered with this mod", itemId);
               } else if (dev.arakiel.curios.compat.forge.ForgeCuriosCompat.isLoaded()) {
                 // Forge content mods register their renderers in the Forge edition's registry: run
                 // theirs through the compatibility bridge so the item still shows on the body.
-                rendered = dev.arakiel.curios.compat.bridge.ForgeApiBridge.renderForeign(
+                if (!dev.arakiel.curios.compat.bridge.ForgeApiBridge.renderForeign(
                     new Object[]{finalStack, slotContext, matrixStack, renderLayerParent,
                         renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
-                        ageInTicks, netHeadYaw, headPitch});
-
-                if (rendered) {
-                  Diag.once("forge-renderer:" + itemId,
-                      "{} is drawn through the Forge renderer bridge", itemId);
-                } else {
-                  rendered = renderTrinketsRenderer(id, finalStack, slotContext, i, livingEntity,
-                      matrixStack, renderTypeBuffer, light, limbSwing, limbSwingAmount,
-                      partialTicks, ageInTicks, netHeadYaw, headPitch);
+                        ageInTicks, netHeadYaw, headPitch})) {
+                  renderTrinketsRenderer(id, finalStack, slotContext, i, livingEntity, matrixStack,
+                      renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks, ageInTicks,
+                      netHeadYaw, headPitch);
                 }
               } else {
-                rendered = renderTrinketsRenderer(id, finalStack, slotContext, i, livingEntity,
-                    matrixStack, renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
-                    ageInTicks, netHeadYaw, headPitch);
-              }
-
-              if (!rendered) {
-                Diag.once("no-renderer:" + itemId,
-                    "{} has no renderer in this mod's, the Forge or the Trinkets registry", itemId);
+                renderTrinketsRenderer(id, finalStack, slotContext, i, livingEntity, matrixStack,
+                    renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks, ageInTicks,
+                    netHeadYaw, headPitch);
               }
             }
           }
@@ -128,29 +104,20 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
    * animationProgress, headYaw, headPitch)}. The slot reference is fabricated by the bridge, so
    * renderers that inspect their slot keep working.</p>
    */
-  private boolean renderTrinketsRenderer(String identifier, ItemStack stack,
-                                         SlotContext slotContext, int index, T livingEntity,
-                                         PoseStack matrixStack, MultiBufferSource renderTypeBuffer,
-                                         int light, float limbSwing, float limbSwingAmount,
-                                         float partialTicks, float ageInTicks, float netHeadYaw,
-                                         float headPitch) {
+  private void renderTrinketsRenderer(String identifier, ItemStack stack, SlotContext slotContext,
+                                      int index, T livingEntity, PoseStack matrixStack,
+                                      MultiBufferSource renderTypeBuffer, int light,
+                                      float limbSwing, float limbSwingAmount, float partialTicks,
+                                      float ageInTicks, float netHeadYaw, float headPitch) {
 
     if (!dev.arakiel.curios.compat.trinkets.TrinketsCompat.isLoaded()) {
-      return false;
+      return;
     }
-    boolean rendered = dev.arakiel.curios.compat.bridge.TrinketsApiBridge.renderForeign(
+    dev.arakiel.curios.compat.bridge.TrinketsApiBridge.renderForeign(
         new Object[]{stack,
             dev.arakiel.curios.compat.bridge.TrinketsApiBridge.slotReference(identifier, index,
-                livingEntity),
+                livingEntity, stack),
             this.renderLayerParent.getModel(), matrixStack, renderTypeBuffer, light, livingEntity,
             limbSwing, limbSwingAmount, partialTicks, ageInTicks, netHeadYaw, headPitch});
-
-    if (rendered) {
-      Diag.once("trinkets-renderer:"
-              + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()),
-          "{} is drawn through the Trinkets renderer bridge",
-          net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()));
-    }
-    return rendered;
   }
 }

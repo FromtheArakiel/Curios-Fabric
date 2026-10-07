@@ -8,7 +8,6 @@
     "forge.ForgeCuriosClientMixin",
     "forge.ForgeCuriosModMixin",
     "forge.ForgeCuriosRegistryMixin",
-    "forge.NeoForgeEffectProbeMixin",
     "neoforge.NeoForgeEffectApplicableMixin",
     "trinkets.TrinketCreativeSlotMixin",
     "trinkets.TrinketComponentMixin",

@@ -15,8 +15,8 @@ import java.lang.reflect.Method;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import dev.arakiel.curios.CuriosConstants;
 import dev.arakiel.curios.compat.CompatTargets;
-import dev.arakiel.curios.compat.Diag;
 
 /**
  * Consults the NeoForge mob effect hook that backs {@code MobEffectEvent.Applicable}.
@@ -69,8 +69,7 @@ public final class NeoForgeEffectHook {
       return result instanceof Boolean value ? value : null;
     } catch (Throwable throwable) {
       unavailable = true;
-      Diag.onceError("effect-hook:" + throwable.getClass().getName(),
-          "could not consult the NeoForge mob effect hook", throwable);
+      CuriosConstants.LOG.warn("Could not consult the NeoForge mob effect hook", throwable);
       return null;
     }
   }

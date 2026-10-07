@@ -11,7 +11,6 @@
 
 package dev.arakiel.curios.compat.mixin.neoforge;
 
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -19,7 +18,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import dev.arakiel.curios.compat.Diag;
 import dev.arakiel.curios.compat.bridge.NeoForgeEffectHook;
 
 /**
@@ -48,12 +46,6 @@ public class NeoForgeEffectApplicableMixin {
         effectInstance, source);
 
     if (allowed != null && !allowed) {
-      Diag.once("blocked:"
-              + (effectInstance == null ? "?"
-                  : BuiltInRegistries.MOB_EFFECT.getKey(effectInstance.getEffect().value())),
-          "the NeoForge effect hook vetoed {} for {}", effectInstance == null ? "?"
-              : BuiltInRegistries.MOB_EFFECT.getKey(effectInstance.getEffect().value()),
-          ((LivingEntity) (Object) this).getType());
       cir.setReturnValue(false);
     }
   }

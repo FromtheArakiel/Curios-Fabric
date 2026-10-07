@@ -29,6 +29,7 @@ import java.util.function.Predicate;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -60,6 +61,7 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import dev.arakiel.curios.api.CuriosApi;
+import dev.arakiel.curios.CuriosConstants;
 import dev.arakiel.curios.api.SlotAttribute;
 import dev.arakiel.curios.api.SlotContext;
 import dev.arakiel.curios.api.event.CurioChangeEvent;
@@ -117,6 +119,18 @@ public class CuriosEventHandler {
         (trackedEntity, player) -> playerStartTracking(player, trackedEntity));
     ServerPlayerEvents.COPY_FROM.register(
         (oldPlayer, newPlayer, alive) -> playerClone(newPlayer, oldPlayer));
+    // Respawning (or changing dimension) replaces the player entity on both sides, and the client
+    // builds a brand new LocalPlayer without any curios data. Without a fresh sync the panel is
+    // empty and every later per slot update is dropped because the client has no slot handlers.
+    //
+    // The sync is deferred to the next server tick. Fabric fires the world change event from
+    // ServerPlayer#setServerLevel, which vanilla calls at the very start of the join sequence -
+    // before the login packet that puts the client into the play phase - so syncing inline would
+    // send play phase payloads too early.
+    ServerPlayerEvents.AFTER_RESPAWN.register(
+        (oldPlayer, newPlayer, alive) -> deferSync(newPlayer));
+    ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register(
+        (player, origin, destination) -> deferSync(player));
     ServerLivingEntityEvents.AFTER_DEATH.register(CuriosEventHandler::playerDrops);
     UseItemCallback.EVENT.register(CuriosEventHandler::curioRightClick);
   }
@@ -189,6 +203,25 @@ public class CuriosEventHandler {
 
   /** Sends the slot/entity data, the equipped curios and the icons to a player. */
   private static void syncPlayer(ServerPlayer player) {
+
+    try {
+      syncPlayerUnchecked(player);
+    } catch (Throwable throwable) {
+      CuriosConstants.LOG.warn("Failed to sync the curios inventory to {}",
+          player.getScoreboardName(), throwable);
+    }
+  }
+
+  /** Runs {@link #syncPlayer(ServerPlayer)} on the next server tick. */
+  private static void deferSync(ServerPlayer player) {
+    net.minecraft.server.MinecraftServer server = player.getServer();
+
+    if (server != null) {
+      server.execute(() -> syncPlayer(player));
+    }
+  }
+
+  private static void syncPlayerUnchecked(ServerPlayer player) {
     NetworkHandler.sendToPlayer(player,
         new SPacketSyncData(CuriosSlotManager.getSyncPacket(), CuriosEntityManager.getSyncPacket()));
     CuriosApi.getCuriosInventory(player)
@@ -525,15 +558,6 @@ public class CuriosEventHandler {
                   ItemStack stack = stackHandler.getStackInSlot(i);
                   Optional<ICurio> currentCurio = CuriosApi.getCurio(stack);
 
-                  if (livingEntity instanceof ServerPlayer && !stack.isEmpty()) {
-                    dev.arakiel.curios.compat.Diag.once("server-slot:" + identifier + ":" + i + ":"
-                            + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(
-                                stack.getItem()),
-                        "[server] curios slot {}#{} holds {} x{}", identifier, i,
-                        net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(
-                            stack.getItem()),
-                        stack.getCount());
-                  }
                   if (functional && !stack.isEmpty()) {
                     stack.inventoryTick(livingEntity.level(), livingEntity, -1, false);
                     currentCurio.ifPresent(curio -> curio.curioTick(slotContext));

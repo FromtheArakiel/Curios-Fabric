@@ -28,7 +28,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import dev.arakiel.curios.CuriosConstants;
 import dev.arakiel.curios.api.CuriosApi;
-import dev.arakiel.curios.compat.Diag;
 import dev.arakiel.curios.api.SlotContext;
 import dev.arakiel.curios.api.SlotResult;
 import dev.arakiel.curios.api.type.ISlotType;
@@ -67,13 +66,10 @@ public final class ForgeApiBridge {
   /** The inventory of the entity as a Forge {@code ICuriosItemHandler}, or {@code null}. */
   public static Object inventory(LivingEntity entity) {
     ICuriosItemHandler ours = CuriosApi.getCuriosInventory(entity).orElse(null);
-    Diag.once("inv:" + entity.getType(),
-        "Forge inventory bridge requested for {} -> {}", entity.getType(),
-        ours == null ? "no curios inventory" : "bridged");
-    return ours == null ? null : inventory(ours, entity);
+    return ours == null ? null : inventory(ours);
   }
 
-  private static Object inventory(ICuriosItemHandler ours, LivingEntity entity) {
+  private static Object inventory(ICuriosItemHandler ours) {
     return ForeignProxy.create(
         new String[]{API + "type.capability.ICuriosItemHandler", ITEM_HANDLER},
         (name, returnType, parameters, args) -> switch (name) {
@@ -104,19 +100,7 @@ public final class ForgeApiBridge {
             ours.setSlotsActive((String) args[0], (Boolean) args[1]);
             yield null;
           }
-          case "findFirstCurio" -> {
-            Object found = slotResult(ours.findFirstCurio(argumentFilter(args)));
-            boolean present = found instanceof Optional<?> optional && optional.isPresent();
-            Object matched = present ? ((Optional<?>) found).get() : null;
-            Object matchedStack = ForeignProxy.read(matched, "stack", null);
-            String matchedId = matchedStack instanceof ItemStack stack
-                ? net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem())
-                    .toString() : "-";
-            Diag.once("ffc:" + entity.getType() + ":" + present,
-                "Forge ICuriosItemHandler.findFirstCurio called for {} -> found={} (item {})",
-                entity.getType(), present, matchedId);
-            yield found;
-          }
+          case "findFirstCurio" -> slotResult(ours.findFirstCurio(argumentFilter(args)));
           case "findCurios" -> {
             if (args.length == 1 && args[0] instanceof Predicate) {
               yield ours.findCurios(predicate(args[0])).stream().map(ForgeApiBridge::slotResult)
@@ -329,13 +313,6 @@ public final class ForgeApiBridge {
     ICurio ours = CuriosApi.getCurio(stack).orElse(null);
 
     if (ours == null) {
-      if (!stack.isEmpty() && dev.arakiel.curios.compat.forge.ForgeCuriosCompat.isLoaded()) {
-        Diag.once("curio-null:" + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(
-                stack.getItem()),
-            "Forge CuriosApi.getCurio({}) returned nothing; a Forge mod asking for its behaviour "
-                + "will see an empty Optional",
-            net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()));
-      }
       return null;
     }
     return ForeignProxy.create(new String[]{API + "type.capability.ICurio"},
@@ -429,18 +406,12 @@ public final class ForgeApiBridge {
           .loadClass(API + "client.CuriosRendererRegistry");
 
       if (registry == null || args.length == 0) {
-        Diag.once("render-registry",
-            "Forge client.CuriosRendererRegistry is not reachable (args={})", args.length);
         return false;
       }
       Item item = ((ItemStack) args[0]).getItem();
       Object renderer = foreignRenderer(registry, item);
 
       if (renderer == null) {
-        Diag.once("render-missing:"
-                + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item),
-            "no Forge renderer is registered for {}",
-            net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item));
         return false;
       }
       Object[] call = args.clone();
@@ -449,21 +420,11 @@ public final class ForgeApiBridge {
       for (java.lang.reflect.Method method : renderer.getClass().getMethods()) {
 
         if (method.getName().equals("render") && method.getParameterCount() == args.length) {
-          Diag.once("render-call:" + renderer.getClass().getName(),
-              "invoking Forge curio renderer {}", renderer.getClass().getName());
           method.invoke(renderer, call);
           return true;
         }
       }
-      Diag.once("render-nomethod:" + renderer.getClass().getName(),
-          "Forge curio renderer {} has no render method with {} parameters",
-          renderer.getClass().getName(), args.length);
     } catch (Throwable throwable) {
-      Diag.onceError("render-error:" + throwable.getClass().getName() + ":"
-              + (args.length > 0 && args[0] instanceof ItemStack stack
-                  ? net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem())
-                  : "?"),
-          "a bridged Forge curio renderer failed", throwable);
       CuriosConstants.LOG.debug("Failed to invoke a bridged Forge curio renderer", throwable);
     }
     return false;
@@ -515,15 +476,9 @@ public final class ForgeApiBridge {
 
       if (renderer != null) {
         FOREIGN_RENDERERS.put(item, renderer);
-        Diag.once("render-resolved:" + renderer.getClass().getName(),
-            "resolved the Forge renderer {} for {} directly from its supplier map",
-            renderer.getClass().getName(),
-            net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item));
       }
       return renderer;
     } catch (Throwable throwable) {
-      Diag.onceError("render-resolve-fail:" + throwable.getClass().getName(),
-          "could not resolve a Forge renderer from the foreign registry", throwable);
       FOREIGN_RENDERERS_MISSING.add(item);
       return null;
     }

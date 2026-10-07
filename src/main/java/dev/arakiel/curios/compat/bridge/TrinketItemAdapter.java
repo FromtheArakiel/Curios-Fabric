@@ -70,35 +70,35 @@ public class TrinketItemAdapter implements ICurioItem {
 
   @Override
   public void curioTick(SlotContext slotContext, ItemStack stack) {
-    call("tick", stack, reference(slotContext), slotContext.entity());
+    call("tick", stack, reference(slotContext, stack), slotContext.entity());
   }
 
   @Override
   public void onEquip(SlotContext slotContext, ItemStack prevStack, ItemStack stack) {
-    call("onEquip", stack, reference(slotContext), slotContext.entity());
+    call("onEquip", stack, reference(slotContext, stack), slotContext.entity());
   }
 
   @Override
   public void onUnequip(SlotContext slotContext, ItemStack newStack, ItemStack stack) {
-    call("onUnequip", stack, reference(slotContext), slotContext.entity());
+    call("onUnequip", stack, reference(slotContext, stack), slotContext.entity());
   }
 
   @Override
   public boolean canEquip(SlotContext slotContext, ItemStack stack) {
-    Object result = call("canEquip", stack, reference(slotContext), slotContext.entity());
+    Object result = call("canEquip", stack, reference(slotContext, stack), slotContext.entity());
     return !(result instanceof Boolean value) || value;
   }
 
   @Override
   public boolean canUnequip(SlotContext slotContext, ItemStack stack) {
-    Object result = call("canUnequip", stack, reference(slotContext), slotContext.entity());
+    Object result = call("canUnequip", stack, reference(slotContext, stack), slotContext.entity());
     return !(result instanceof Boolean value) || value;
   }
 
   /** The real Trinkets slot reference of this slot, so hooks that inspect it keep working. */
-  private Object reference(SlotContext slotContext) {
+  private Object reference(SlotContext slotContext, ItemStack stack) {
     return TrinketsApiBridge.slotReference(slotContext.identifier(), slotContext.index(),
-        slotContext.entity());
+        slotContext.entity(), stack);
   }
 
   @Override
