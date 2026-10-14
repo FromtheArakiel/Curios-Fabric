@@ -135,6 +135,20 @@ public class CuriosServerPayloadHandler {
             SlotContext slotContext = new SlotContext(id, player, i, false,
                 renderStates.size() > i && renderStates.get(i));
             ItemStack stack = stackHandler.getStackInSlot(i);
+            ItemStack cosmeticStack = cosmeticStackHandler.getStackInSlot(i);
+
+            // Hand the player whatever fits, and keep the rest equipped. Taking a curio off never
+            // destroys it and never drops it on the ground; with no room at all the slot is simply
+            // left untouched, exactly like a shift click that cannot move the item.
+            ItemStack stackLeft = stack.copy();
+            player.getInventory().add(stackLeft);
+            ItemStack cosmeticLeft = cosmeticStack.copy();
+            player.getInventory().add(cosmeticLeft);
+
+            if (stackLeft.getCount() == stack.getCount()
+                && cosmeticLeft.getCount() == cosmeticStack.getCount()) {
+              continue;
+            }
             Multimap<Holder<Attribute>, AttributeModifier> map =
                 CuriosApi.getAttributeModifiers(slotContext, CuriosApi.getSlotId(slotContext),
                     stack);
@@ -164,13 +178,13 @@ public class CuriosServerPayloadHandler {
             handler.removeSlotModifiers(slots);
             CuriosApi.getCurio(stack)
                 .ifPresent(curio -> curio.onUnequip(slotContext, stack));
-            stackHandler.setStackInSlot(i, ItemStack.EMPTY);
+            stackHandler.setStackInSlot(i, stackLeft);
             NetworkHandler.sendToTrackingAndSelf(player,
-                new SPacketSyncStack(player.getId(), id, i, ItemStack.EMPTY,
+                new SPacketSyncStack(player.getId(), id, i, stackLeft,
                     SPacketSyncStack.HandlerType.EQUIPMENT.ordinal(), new CompoundTag()));
-            cosmeticStackHandler.setStackInSlot(i, ItemStack.EMPTY);
+            cosmeticStackHandler.setStackInSlot(i, cosmeticLeft);
             NetworkHandler.sendToTrackingAndSelf(player,
-                new SPacketSyncStack(player.getId(), id, i, ItemStack.EMPTY,
+                new SPacketSyncStack(player.getId(), id, i, cosmeticLeft,
                     SPacketSyncStack.HandlerType.COSMETIC.ordinal(), new CompoundTag()));
           }
         }));

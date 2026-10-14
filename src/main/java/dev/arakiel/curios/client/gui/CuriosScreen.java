@@ -650,6 +650,14 @@ public class CuriosScreen extends EffectRenderingInventoryScreen<CuriosContainer
   @Override
   protected boolean hasClickedOutside(
       double mouseX, double mouseY, int guiLeftIn, int guiTopIn, int mouseButton) {
+
+    // The curio slots are drawn in a panel to the left of the inventory rectangle. Vanilla reports
+    // every point outside that rectangle as "outside the window", and a click there is turned into
+    // a THROW - which throws the clicked stack out of its slot and onto the ground. A click inside
+    // the panel is an ordinary click on a curio slot, so it must be reported as inside.
+    if (this.isHoveringCurioPanel(mouseX, mouseY)) {
+      return false;
+    }
     boolean flag =
         mouseX < guiLeftIn
             || mouseY < guiTopIn
@@ -664,6 +672,20 @@ public class CuriosScreen extends EffectRenderingInventoryScreen<CuriosContainer
         this.imageHeight,
         mouseButton)
         && flag;
+  }
+
+  /**
+   * True while the point is inside the side panel that holds the curio slots.
+   *
+   * <p>Uses the same area as {@link #mouseScrolled}, so the panel is treated consistently by both.
+   * The panel has no width while no slot is visible, in which case this is never true.</p>
+   */
+  private boolean isHoveringCurioPanel(double mouseX, double mouseY) {
+    return this.panelWidth > 0
+        && mouseX >= this.leftPos - this.panelWidth
+        && mouseX < this.leftPos
+        && mouseY >= this.topPos
+        && mouseY < this.topPos + this.imageHeight;
   }
 
   @Override
