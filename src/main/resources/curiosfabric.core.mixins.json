@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "dev.arakiel.curiosfabric.mixin.core",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinApplyBonusCount",
+    "MixinBlockExperience",
+    "MixinEnchantedCountIncreaseFunction",
+    "MixinEnderMan",
+    "MixinEntityTick",
+    "MixinInventory",
+    "MixinLivingEntity",
+    "MixinLivingEntityEquipment",
+    "MixinNbtPredicate",
+    "MixinPiglinAi",
+    "MixinPowderSnowBlock"
+  ],
+  "minVersion": "0.8"
+}

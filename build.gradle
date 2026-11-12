@@ -11,7 +11,7 @@ base {
 }
 
 loom {
-	accessWidenerPath = file('src/main/resources/curios.accesswidener')
+	accessWidenerPath = file('src/main/resources/curiosfabric.accesswidener')
 }
 
 // Third-party mod jars are supplied from the local "libs" folder so the project
@@ -32,8 +32,22 @@ dependencies {
 	compileOnly 'org.jetbrains:annotations:24.1.0'
 	compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
+	// Gemini is the required shared API layer for configuration, networking, events and components.
+	modImplementation localMod("gemini-${project.gemini_version}.jar")
+	// Loom does not expose nested JiJ libraries from a local file dependency on the development run
+	// classpath, so add Gemini's bundled NightConfig libraries explicitly for dev/test launches.
+	runtimeOnly localMod("core-3.8.0.jar")
+	runtimeOnly localMod("toml-3.8.0.jar")
+
 	// Optional integration targets: compiled against, never required at runtime.
 	modCompileOnly localMod("jei-1.21.1-fabric-${project.jei_version}.jar")
+	modCompileOnly localMod("modmenu-${project.modmenu_version}.jar")
+
+	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testRuntimeOnly localMod("core-3.8.0.jar")
+	testRuntimeOnly localMod("toml-3.8.0.jar")
 }
 
 processResources {
@@ -61,6 +75,10 @@ tasks.withType(JavaCompile).configureEach {
 	// internally, exactly like upstream does. The resulting [removal] notes are therefore expected
 	// and not actionable, so that one lint key is turned off instead of spraying suppressions.
 	it.options.compilerArgs += ['-Xlint:-removal']
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
 }
 
 java {
