@@ -39,7 +39,7 @@
     "minecraft": "~1.21.1",
     "java": ">=21",
     "fabric-api": "*",
-    "gemini": ">=1.0.4"
+    "gemini": ">=1.0.5"
   },
   "custom": {
     "gemini:components": [

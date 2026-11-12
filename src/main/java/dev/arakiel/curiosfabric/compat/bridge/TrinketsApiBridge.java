@@ -301,9 +301,9 @@ public final class TrinketsApiBridge {
     return false;
   }
 
-  /** A Trinkets slot group is mapped onto a Curios slot identifier. */
-  public static Optional<String> curiosSlotOf(String trinketsGroup) {
-    return Optional.ofNullable(TrinketsCompat.curiosSlotOf(trinketsGroup));
+  /** A complete Trinkets {@code group/slot} path is mapped onto a Curios identifier. */
+  public static Optional<String> curiosSlotOf(String trinketsPath) {
+    return Optional.ofNullable(TrinketsCompat.curiosSlotOf(trinketsPath));
   }
 
   @SuppressWarnings("unchecked")

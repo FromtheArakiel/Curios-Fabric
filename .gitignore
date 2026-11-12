@@ -8,7 +8,6 @@ run/
 .vscode/
 !libs/*.jar
 run/
-README.md
 PORTING_NOTES.md
 tools/
 src/test/

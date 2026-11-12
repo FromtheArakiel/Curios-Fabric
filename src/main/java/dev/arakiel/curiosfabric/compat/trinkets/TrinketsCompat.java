@@ -9,6 +9,7 @@ package dev.arakiel.curiosfabric.compat.trinkets;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
+import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
@@ -80,10 +81,16 @@ public final class TrinketsCompat {
         generatedSlots.computeIfAbsent(slot.curiosId, ignored -> createSlotType(slot));
       }
     }
-    CuriosSlotManager.SERVER.mergeSlots(generatedSlots);
+    CuriosSlotManager.SERVER.mergeSlots(generatedSlots, MOD_ID);
     if (!generatedSlots.isEmpty()) {
       CuriosFabricConstants.LOG.info("Added {} compatibility slots from Trinkets",
           generatedSlots.size());
+      for (TrinketSlot slot : discovered.values()) {
+        if (generatedSlots.containsKey(slot.curiosId)) {
+          CuriosFabricConstants.LOG.info("Mirrored Trinkets slot {} as {} (source {})",
+              slot.path, slot.curiosId, generatedSlots.get(slot.curiosId).getSource().id());
+        }
+      }
     }
 
     Map<EntityType<?>, Map<String, ISlotType>> entitySlots = new HashMap<>();
@@ -119,8 +126,8 @@ public final class TrinketsCompat {
     pathByCuriosSlot = Map.of();
   }
 
-  public static boolean isTrinketFor(ItemStack stack, String trinketsGroup) {
-    return isLoaded() && stack.is(tagFor(trinketsGroup));
+  public static boolean isTrinketFor(ItemStack stack, String trinketsPath) {
+    return isLoaded() && stack.is(tagFor(trinketsPath));
   }
 
   public static Set<String> slotsFor(ItemStack stack) {
@@ -142,9 +149,9 @@ public final class TrinketsCompat {
     return slotsFor(stack).isEmpty() ? Optional.empty() : Optional.of(TrinketCurio.INSTANCE);
   }
 
-  public static String curiosSlotOf(String trinketsGroup) {
+  public static String curiosSlotOf(String trinketsPath) {
     ensureSlots();
-    TrinketSlot slot = slotsByPath.get(trinketsGroup);
+    TrinketSlot slot = slotsByPath.get(trinketsPath);
     return slot == null ? null : slot.curiosId;
   }
 
@@ -168,6 +175,7 @@ public final class TrinketsCompat {
 
   private static ISlotType createSlotType(TrinketSlot descriptor) {
     SlotType.Builder builder = new SlotType.Builder(descriptor.curiosId)
+        .source(SlotSource.TRINKETS)
         .order(descriptor.order, true)
         .size(descriptor.amount, "SET", true)
         .useNativeGui(true, true)
@@ -213,10 +221,7 @@ public final class TrinketsCompat {
             String slotName = String.valueOf(slotEntry.getKey());
             String path = groupName + "/" + slotName;
             Object slot = slotEntry.getValue();
-            String curiosId = TrinketSlots.toCurios(path);
-            if (curiosId == null) {
-              curiosId = generatedSlotId(path);
-            }
+            String curiosId = curiosSlotId(path);
             int order = readInt(slot, "getOrder", 1000);
             int amount = Math.max(1, readInt(slot, "getAmount", 1));
             Object rawIcon = slot.getClass().getMethod("getIcon").invoke(slot);
@@ -236,11 +241,31 @@ public final class TrinketsCompat {
     return result;
   }
 
-  static String generatedSlotId(String path) {
+  /**
+   * Builds a collision-free Curios identifier from the complete Trinkets path.
+   *
+   * <p>Using the complete path is deliberate: aliases such as {@code head/hat} and
+   * {@code head/face} remain separate, so a bad conversion is visible instead of being hidden by a
+   * shared target id.</p>
+   */
+  static String curiosSlotId(String path) {
     String value = "trinkets_" + path.toLowerCase(Locale.ROOT)
         .replace('/', '_')
         .replaceAll("[^a-z0-9_]", "_");
     return value.replaceAll("_+", "_");
+  }
+
+  /** Resolves the Trinkets translation key associated with one of our mirrored slot ids. */
+  public static Optional<String> translationKeyFor(String curiosSlot) {
+    if (!isLoaded()) {
+      return Optional.empty();
+    }
+    String path = trinketsPathOf(curiosSlot);
+    return path == null ? Optional.empty() : Optional.of(translationKeyForPath(path));
+  }
+
+  static String translationKeyForPath(String path) {
+    return "trinkets.slot." + path.replace('/', '.');
   }
 
   private static int readInt(Object target, String method, int fallback) {
@@ -264,9 +289,9 @@ public final class TrinketsCompat {
     return ICurio.DropRule.DEFAULT;
   }
 
-  private static TagKey<Item> tagFor(String trinketsGroup) {
-    return TAG_CACHE.computeIfAbsent(trinketsGroup, group -> TagKey.create(Registries.ITEM,
-        ResourceLocation.fromNamespaceAndPath(MOD_ID, group)));
+  private static TagKey<Item> tagFor(String trinketsPath) {
+    return TAG_CACHE.computeIfAbsent(trinketsPath, path -> TagKey.create(Registries.ITEM,
+        ResourceLocation.fromNamespaceAndPath(MOD_ID, path)));
   }
 
   private record TrinketSlot(String path, String curiosId, int order, int amount,

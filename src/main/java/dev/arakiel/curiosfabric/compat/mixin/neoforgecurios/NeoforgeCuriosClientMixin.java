@@ -9,7 +9,7 @@
  * (at your option) any later version.
  */
 
-package dev.arakiel.curiosfabric.compat.mixin.neoforge;
+package dev.arakiel.curiosfabric.compat.mixin.neoforgecurios;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

@@ -4,7 +4,7 @@
  * This file is part of Curios, a mod made for Minecraft.
  */
 
-package dev.arakiel.curiosfabric.compat.neoforge;
+package dev.arakiel.curiosfabric.compat.neoforgecurios;
 
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;

@@ -55,7 +55,7 @@ import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.server.SPacketBreak;
-import dev.arakiel.curiosfabric.compat.neoforge.NeoforgeCuriosCompat;
+import dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat;
 import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
 
 /**

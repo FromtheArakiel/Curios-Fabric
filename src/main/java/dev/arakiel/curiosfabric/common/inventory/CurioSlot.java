@@ -31,6 +31,7 @@ import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.extensions.ICurioSlotExtension;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
+import dev.arakiel.curiosfabric.client.SlotLanguage;
 import dev.arakiel.curiosfabric.mixin.core.AccessorEntity;
 
 public class CurioSlot extends SlotItemHandler {
@@ -133,17 +134,7 @@ public class CurioSlot extends SlotItemHandler {
     if (this.isCosmetic) {
       builder.append(I18n.get("curiosfabric.cosmetic")).append(" ");
     }
-    String key = "curiosfabric.identifier." + this.identifier;
-
-    if (I18n.exists(key)) {
-      builder.append(I18n.get(key));
-
-      return builder.toString();
-    }
-    return builder
-        .append(Character.toUpperCase(this.identifier.charAt(0)))
-        .append(this.identifier.substring(1).toLowerCase())
-        .toString();
+    return builder.append(SlotLanguage.name(this.identifier)).toString();
   }
 
   @Override

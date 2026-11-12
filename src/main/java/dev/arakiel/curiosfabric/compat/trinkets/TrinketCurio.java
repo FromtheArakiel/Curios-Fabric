@@ -34,7 +34,7 @@ public enum TrinketCurio implements ICurioItem {
 
   /** {@code true} when the stack is registered for the given Curios slot through Trinkets' tags. */
   public static boolean mapsTo(String curiosSlot, ItemStack stack) {
-    String group = TrinketSlots.toTrinkets(curiosSlot);
-    return group != null && TrinketsCompat.isTrinketFor(stack, group);
+    String path = TrinketsCompat.trinketsPathOf(curiosSlot);
+    return path != null && TrinketsCompat.isTrinketFor(stack, path);
   }
 }

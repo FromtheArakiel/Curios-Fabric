@@ -24,7 +24,10 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
  */
 public class CompatMixinPlugin implements IMixinConfigPlugin {
 
-  private static final String NEOFORGE_PACKAGE = "dev.arakiel.curiosfabric.compat.mixin.neoforge.";
+  private static final String NEOFORGE_PACKAGE =
+      "dev.arakiel.curiosfabric.compat.mixin.neoforge.";
+  private static final String NEOFORGE_CURIOS_PACKAGE =
+      "dev.arakiel.curiosfabric.compat.mixin.neoforgecurios.";
   private static final String TRINKETS_PACKAGE = "dev.arakiel.curiosfabric.compat.mixin.trinkets.";
   private static final String CLIENT_PACKAGE = "dev.arakiel.curiosfabric.compat.mixin.client.";
 
@@ -41,11 +44,12 @@ public class CompatMixinPlugin implements IMixinConfigPlugin {
   @Override
   public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
 
-    if (mixinClassName.startsWith(NEOFORGE_PACKAGE)) {
-      if (mixinClassName.endsWith(".NeoforgeEffectApplicableMixin")) {
-        return apply(CompatTargets.isNeoforgeLoaded(), mixinClassName, targetClassName);
-      }
+    if (mixinClassName.startsWith(NEOFORGE_CURIOS_PACKAGE)) {
       return apply(CompatTargets.isNeoforgeCuriosLoaded(), mixinClassName, targetClassName);
+    }
+
+    if (mixinClassName.startsWith(NEOFORGE_PACKAGE)) {
+      return apply(CompatTargets.isNeoforgeLoaded(), mixinClassName, targetClassName);
     }
 
     if (mixinClassName.startsWith(TRINKETS_PACKAGE)) {

@@ -9,7 +9,7 @@
  * (at your option) any later version.
  */
 
-package dev.arakiel.curiosfabric.compat.mixin.neoforge;
+package dev.arakiel.curiosfabric.compat.mixin.neoforgecurios;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

@@ -75,10 +75,7 @@ public class ClientEventHandler {
 
     for (int j = 0; j < slots.size(); j++) {
       String id = slots.get(j);
-      String key = "curiosfabric.identifier." + id;
-      MutableComponent type =
-          Component.translatableWithFallback(
-              key, Character.toUpperCase(id.charAt(0)) + id.substring(1).toLowerCase());
+      MutableComponent type = SlotLanguage.displayName(id);
 
       if (j < slots.size() - 1) {
         type = type.append(", ");

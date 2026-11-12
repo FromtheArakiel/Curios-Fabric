@@ -26,12 +26,13 @@ import net.minecraft.resources.ResourceLocation;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.CuriosEntrypoint;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
+import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.SlotTypeMessage;
 import dev.arakiel.curiosfabric.api.SlotTypePreset;
 import dev.arakiel.curiosfabric.common.slottype.SlotType.Builder;
 import dev.arakiel.curiosfabric.compat.CompatTargets;
-import dev.arakiel.curiosfabric.compat.neoforge.NeoforgeCuriosCompat;
+import dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat;
 
 /**
  * Collects slot type definitions from the {@code curiosfabric} entrypoints.
@@ -115,7 +116,8 @@ public class NeoforgeCuriosSlotManager {
           Object foreignBuilder = entry.getValue();
           Object slot = foreignBuilder.getClass().getMethod("build").invoke(foreignBuilder);
           Builder builder = IMC_BUILDERS.computeIfAbsent(id, Builder::new);
-          builder.order(readInt(slot, "getOrder"), true)
+          builder.sourceIfAbsent(SlotSource.NEOFORGE_CURIOS)
+              .order(readInt(slot, "getOrder"), true)
               .size(readInt(slot, "getSize"), "SET", true)
               .useNativeGui(readBoolean(slot, "useNativeGui"), true)
               .hasCosmetic(readBoolean(slot, "hasCosmetic"), true)
@@ -184,11 +186,13 @@ public class NeoforgeCuriosSlotManager {
 
         if (builder == null && create) {
           builder = new Builder(id);
+          builder.sourceIfAbsent(SlotSource.NEOFORGE_CURIOS);
           IMC_BUILDERS.put(id, builder);
           IDS_TO_MODS.computeIfAbsent(id, k -> new HashSet<>()).add(modId);
         }
 
         if (builder != null) {
+          builder.sourceIfAbsent(SlotSource.NEOFORGE_CURIOS);
           builder.size(msg.getSize()).useNativeGui(msg.isVisible()).hasCosmetic(msg.hasCosmetic());
           SlotTypeMessage.Builder preset = SlotTypePreset.findPreset(id)
               .map(SlotTypePreset::getMessageBuilder).orElse(null);

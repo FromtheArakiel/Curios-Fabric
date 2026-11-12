@@ -41,7 +41,7 @@ import dev.arakiel.curiosfabric.common.event.CuriosFabricEventHandler;
 import dev.arakiel.curiosfabric.common.integration.CuriosIntegrations;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.slottype.NeoforgeCuriosSlotManager;
-import dev.arakiel.curiosfabric.compat.neoforge.NeoforgeCuriosCompat;
+import dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat;
 import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
 import dev.arakiel.curiosfabric.server.SlotHelper;
 import dev.arakiel.curiosfabric.server.command.CurioArgumentType;

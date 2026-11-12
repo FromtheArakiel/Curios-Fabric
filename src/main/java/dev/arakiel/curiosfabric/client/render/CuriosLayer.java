@@ -74,7 +74,7 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                         .render(finalStack, slotContext, matrixStack, renderLayerParent,
                             renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
                             ageInTicks, netHeadYaw, headPitch));
-              } else if (dev.arakiel.curiosfabric.compat.neoforge.NeoforgeCuriosCompat.isLoaded()) {
+              } else if (dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat.isLoaded()) {
                 // Neoforge content mods register their renderers in the Neoforge edition's registry: run
                 // theirs through the compatibility bridge so the item still shows on the body.
                 if (!dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosApiBridge.renderForeign(

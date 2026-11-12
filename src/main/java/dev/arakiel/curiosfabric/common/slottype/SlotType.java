@@ -31,11 +31,13 @@ import net.minecraft.resources.ResourceLocation;
 import org.apache.commons.lang3.EnumUtils;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
+import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 
 public final class SlotType implements ISlotType {
 
   private final String identifier;
+  private final SlotSource source;
   private final int order;
   private final int size;
   private final boolean useNativeGui;
@@ -47,6 +49,7 @@ public final class SlotType implements ISlotType {
 
   public static ISlotType from(CompoundTag tag) {
     Builder builder = new Builder(tag.getString("Identifier"));
+    builder.source(SlotSource.fromId(tag.getString("Source")));
     builder.icon(ResourceLocation.parse(tag.getString("Icon")));
     builder.order(tag.getInt("Order"));
     builder.size(tag.getInt("Size"));
@@ -66,6 +69,7 @@ public final class SlotType implements ISlotType {
 
   private SlotType(Builder builder) {
     this.identifier = builder.identifier;
+    this.source = builder.source;
     this.order = builder.order;
     this.size = builder.size;
     this.useNativeGui = builder.useNativeGui;
@@ -79,6 +83,11 @@ public final class SlotType implements ISlotType {
   @Override
   public String getIdentifier() {
     return this.identifier;
+  }
+
+  @Override
+  public SlotSource getSource() {
+    return this.source;
   }
 
   @Override
@@ -154,6 +163,7 @@ public final class SlotType implements ISlotType {
   public CompoundTag writeNbt() {
     CompoundTag tag = new CompoundTag();
     tag.putString("Identifier", this.identifier);
+    tag.putString("Source", this.source.id());
     tag.putString("Icon", this.icon.toString());
     tag.putInt("Order", this.order);
     tag.putInt("Size", this.size);
@@ -173,6 +183,7 @@ public final class SlotType implements ISlotType {
   public static class Builder {
 
     private final String identifier;
+    private SlotSource source = null;
     private Integer order = null;
     private Integer size = null;
     private int sizeMod = 0;
@@ -194,6 +205,10 @@ public final class SlotType implements ISlotType {
         CuriosFabricConstants.LOG.error("Mismatched slot builders {} and {}", builder.identifier,
             this.identifier);
         return;
+      }
+
+      if (builder.source != null) {
+        sourceIfAbsent(builder.source);
       }
 
       if (builder.order != null) {
@@ -231,6 +246,18 @@ public final class SlotType implements ISlotType {
 
     public Builder icon(ResourceLocation icon) {
       this.icon = icon;
+      return this;
+    }
+
+    public Builder source(SlotSource source) {
+      this.source = source;
+      return this;
+    }
+
+    public Builder sourceIfAbsent(SlotSource source) {
+      if (this.source == null) {
+        this.source = source;
+      }
       return this;
     }
 
@@ -353,6 +380,9 @@ public final class SlotType implements ISlotType {
       if (this.validators == null) {
         this.validators =
             Set.of(ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, "tag"));
+      }
+      if (this.source == null) {
+        this.source = SlotSource.CURIOSFABRIC;
       }
       return new SlotType(this);
     }

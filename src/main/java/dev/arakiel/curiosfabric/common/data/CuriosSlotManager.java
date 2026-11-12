@@ -34,6 +34,8 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -42,12 +44,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.IoSupplier;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -55,11 +58,10 @@ import net.minecraft.util.GsonHelper;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
 import org.apache.commons.lang3.EnumUtils;
-import java.util.Collection;
-import java.util.List;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
+import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.common.CuriosFabricConfig;
 import dev.arakiel.curiosfabric.common.util.CuriosConditions;
@@ -114,30 +116,26 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
     Map<String, SlotType.Builder> map = new HashMap<>();
     Map<String, ImmutableSet.Builder<String>> modMap = new HashMap<>();
     Map<ResourceLocation, JsonElement> sorted = new LinkedHashMap<>();
-    pResourceManager.listPacks().forEach(packResources -> {
-      Set<String> namespaces = packResources.getNamespaces(PackType.SERVER_DATA);
-
-      for (String namespace : namespaces) {
-
-        for (String directory : directories()) {
-          packResources.listResources(PackType.SERVER_DATA, namespace, directory,
-              (resourceLocation, inputStreamIoSupplier) -> {
-                String path = resourceLocation.getPath();
-                ResourceLocation rl = ResourceLocation.fromNamespaceAndPath(namespace,
-                    path.substring(directory.length() + 1, path.length() - ".json".length()));
-                JsonElement el = pObject.get(rl);
-
-                if (el == null) {
-                  el = readJson(inputStreamIoSupplier);
-                }
-
-                if (el != null) {
-                  sorted.put(rl, el);
-                }
-              });
-        }
-      }
-    });
+    Map<ResourceLocation, SlotSource> sourceMap = new HashMap<>();
+    for (String directory : directories()) {
+      SlotSource source = directory.equals(
+          CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE + "/slots")
+          ? SlotSource.NEOFORGE_CURIOS : SlotSource.CURIOSFABRIC;
+      Map<ResourceLocation, Resource> resources = pResourceManager.listResources(directory,
+          resource -> resource.getPath().endsWith(".json"));
+      CuriosFabricConstants.LOG.info("Found {} slot resources in {}", resources.size(), directory);
+      resources.forEach((resourceLocation, resource) -> {
+            String path = resourceLocation.getPath();
+            ResourceLocation slot = ResourceLocation.fromNamespaceAndPath(
+                resourceLocation.getNamespace(),
+                path.substring(directory.length() + 1, path.length() - ".json".length()));
+            JsonElement element = readJson(resource::open);
+            if (element != null) {
+              sorted.put(slot, element);
+              sourceMap.put(slot, source);
+            }
+          });
+    }
 
     for (Map.Entry<ResourceLocation, JsonElement> entry : sorted.entrySet()) {
       ResourceLocation resourcelocation = entry.getKey();
@@ -152,8 +150,10 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
                 resourcelocation);
             continue;
           }
-          fromJson(map.computeIfAbsent(id, (k) -> new SlotType.Builder(id)),
-              GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
+          SlotType.Builder builder = map.computeIfAbsent(id, (k) -> new SlotType.Builder(id));
+          builder.sourceIfAbsent(sourceMap.getOrDefault(
+              resourcelocation, SlotSource.CURIOSFABRIC));
+          fromJson(builder, GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
           modMap.computeIfAbsent(id, (k) -> ImmutableSet.builder())
               .add(resourcelocation.getNamespace());
         } catch (IllegalArgumentException | JsonParseException e) {
@@ -168,6 +168,7 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
         .entrySet()) {
       SlotType.Builder builder =
           map.computeIfAbsent(entry.getKey(), (k) -> new SlotType.Builder(entry.getKey()));
+      builder.sourceIfAbsent(SlotSource.NEOFORGE_CURIOS);
       builder.apply(entry.getValue());
     }
 
@@ -192,8 +193,10 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
               resourcelocation);
           continue;
         }
-        fromJson(map.computeIfAbsent(id, (k) -> new SlotType.Builder(id)),
-            GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
+        SlotType.Builder builder = map.computeIfAbsent(id, (k) -> new SlotType.Builder(id));
+        builder.sourceIfAbsent(sourceMap.getOrDefault(
+            resourcelocation, SlotSource.CURIOSFABRIC));
+        fromJson(builder, GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
         modMap.computeIfAbsent(id, (k) -> ImmutableSet.builder())
             .add(resourcelocation.getNamespace());
       } catch (IllegalArgumentException | JsonParseException e) {
@@ -215,7 +218,12 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().build()));
     this.idToMods = modMap.entrySet().stream()
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().build()));
-    CuriosFabricConstants.LOG.info("Loaded {} curio slots", map.size());
+    CuriosFabricConstants.LOG.info("Loaded {} curio slots ({})", map.size(),
+        Arrays.stream(SlotSource.values())
+            .map(source -> source.id() + "=" + this.slots.values().stream()
+                .filter(slot -> slot.getSource() == source)
+                .count())
+            .collect(Collectors.joining(", ")));
   }
 
   public Map<String, ISlotType> getSlots() {
@@ -224,12 +232,48 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
 
   /** Adds dynamically discovered compatibility slots without replacing data-defined slots. */
   public void mergeSlots(Map<String, ISlotType> additions) {
+    mergeSlots(additions, null);
+  }
+
+  /**
+   * Adds dynamically discovered compatibility slots and records their source for diagnostics.
+   */
+  public void mergeSlots(Map<String, ISlotType> additions, String sourceModId) {
     if (additions.isEmpty()) {
       return;
     }
     Map<String, ISlotType> merged = new LinkedHashMap<>(this.slots);
-    additions.forEach(merged::putIfAbsent);
+    Set<String> added = new HashSet<>();
+    additions.forEach((id, slot) -> {
+      if (!merged.containsKey(id)) {
+        merged.put(id, slot);
+        added.add(id);
+      }
+    });
     this.slots = ImmutableMap.copyOf(merged);
+    if (sourceModId == null || added.isEmpty()) {
+      return;
+    }
+    Map<String, Set<String>> addedSources = new LinkedHashMap<>();
+    for (String id : added) {
+      addedSources.put(id, Set.of(sourceModId));
+    }
+    mergeSlotSources(addedSources);
+  }
+
+  /** Records the provider mods for dynamically discovered slot types. */
+  public void mergeSlotSources(Map<String, Set<String>> sources) {
+    if (sources.isEmpty()) {
+      return;
+    }
+    Map<String, Set<String>> mergedSources = new LinkedHashMap<>();
+    this.idToMods.forEach((id, owners) ->
+        mergedSources.put(id, new HashSet<>(owners)));
+    sources.forEach((id, owners) ->
+        mergedSources.computeIfAbsent(id, ignored -> new HashSet<>()).addAll(owners));
+    this.idToMods = mergedSources.entrySet().stream()
+        .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey,
+            entry -> ImmutableSet.copyOf(entry.getValue())));
   }
 
   public Optional<ISlotType> getSlot(String id) {

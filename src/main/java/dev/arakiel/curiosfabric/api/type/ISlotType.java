@@ -34,6 +34,13 @@ public interface ISlotType extends Comparable<ISlotType> {
   String getIdentifier();
 
   /**
+   * @return The accessory implementation that provided this slot definition
+   */
+  default SlotSource getSource() {
+    return SlotSource.CURIOSFABRIC;
+  }
+
+  /**
    * @return The {@link ResourceLocation} for the icon associated with this slot type
    */
   ResourceLocation getIcon();
