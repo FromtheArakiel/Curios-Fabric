@@ -1,9 +1,0 @@
-{
-  "order": 42,
-  "amount": 2,
-  "icon": "trinkets:gui/slots/charm",
-  "drop_rule": "ALWAYS_KEEP",
-  "validator_predicates": [
-    "trinkets:tag"
-  ]
-}

@@ -1,9 +1,0 @@
-{
-  "replace": false,
-  "slots": [
-    "custom/sigil"
-  ],
-  "entities": [
-    "minecraft:player"
-  ]
-}
