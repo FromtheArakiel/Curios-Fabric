@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- */
-
 package dev.arakiel.curiosfabric.compat.neoforgecurios;
 
 import dev.arakiel.curiosfabric.api.CuriosApi;
@@ -19,15 +13,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import dev.arakiel.gemini.integration.GeminiIntegrations;
 
 /**
- * Bridge for content mods that were written against the Neoforge/Neoforge edition of Curios and are
- * brought over by a cross loader compatibility layer (for example Sinytra Connector).
+ * Bridge for content mods written against the NeoForge Curios edition.
  *
- * <p>Like {@code accessories-compat-layer} does for Trinkets, the bridge never links against the
- * other implementation: it only reads the data that the Neoforge edition publishes and feeds it into
- * this implementation.</p>
+ * <p>The bridge never links against the other implementation: it only reads the data that the
+ * NeoForge edition publishes and feeds it into this implementation.</p>
  *
  * <ul>
  *   <li><b>slot definitions</b> - {@code data/<namespace>/curios/slots/<id>.json} is the same path in
@@ -54,12 +45,9 @@ public final class NeoforgeCuriosCompat {
   private NeoforgeCuriosCompat() {
   }
 
-  /** {@code true} when a cross loader layer or the neoforge edition is present. */
+  /** {@code true} when the NeoForge Curios edition is present. */
   public static boolean isLoaded() {
-    return dev.arakiel.curiosfabric.compat.CompatTargets.isNeoforgeCuriosLoaded()
-        || GeminiIntegrations.isModLoaded("connectormod")
-        || GeminiIntegrations.isModLoaded("connector")
-        || GeminiIntegrations.isModLoaded("sinytra_connector");
+    return dev.arakiel.curiosfabric.compat.CompatTargets.isNeoforgeCuriosLoaded();
   }
 
   /**

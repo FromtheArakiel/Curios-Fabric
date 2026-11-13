@@ -1,14 +1,3 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- *
- * Curios is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 package dev.arakiel.curiosfabric.api;
 
 import dev.arakiel.curiosfabric.api.extensions.RegisterCuriosExtensionsEvent;
@@ -40,7 +29,6 @@ public interface CuriosEntrypoint {
    * @param registrar Accepts the slot type messages of this mod
    */
   default void createSlots(Consumer<SlotTypeMessage> registrar) {
-    // NO-OP
   }
 
   /**
@@ -49,7 +37,6 @@ public interface CuriosEntrypoint {
    * @param registrar Accepts the slot type messages of this mod
    */
   default void modifySlots(Consumer<SlotTypeMessage> registrar) {
-    // NO-OP
   }
 
   /**
@@ -58,6 +45,5 @@ public interface CuriosEntrypoint {
    * @param event The extension registration event
    */
   default void registerExtensions(RegisterCuriosExtensionsEvent event) {
-    // NO-OP
   }
 }

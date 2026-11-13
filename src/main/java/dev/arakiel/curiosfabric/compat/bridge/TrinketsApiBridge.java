@@ -1,14 +1,3 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- *
- * Curios is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 package dev.arakiel.curiosfabric.compat.bridge;
 
 import com.google.common.collect.LinkedHashMultimap;
@@ -126,7 +115,9 @@ public final class TrinketsApiBridge {
 
   /** Builds the Trinkets slot-group view for an entity type. */
   public static Map<String, Object> entitySlots(EntityType<?> type, boolean isClient) {
-    return type == null ? Map.of() : entitySlots(CuriosApi.getEntitySlots(type, isClient));
+    return type == null || !TrinketsCompat.hasDiscoveredSlots()
+        ? Map.of()
+        : entitySlots(CuriosApi.getEntitySlots(type, isClient));
   }
 
   private static Map<String, Object> entitySlots(Map<String, ISlotType> source) {

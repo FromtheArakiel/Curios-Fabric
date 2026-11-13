@@ -1,21 +1,10 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- *
- * Curios is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 package dev.arakiel.curiosfabric.compat;
 
 import dev.arakiel.gemini.integration.GeminiIntegrations;
 
 /**
- * Detection of the accessory implementations that this mod takes over: the NeoForge edition
- * of Curios (loaded by a cross loader layer such as Kilt or Connector) and Trinkets.
+ * Detection of the accessory implementations that this mod takes over: the NeoForge edition of
+ * Curios and Trinkets.
  *
  * <p>Nothing here links against those mods: everything is done through mod ids and class names, so
  * the class is always loadable and simply reports "absent" when a target is missing.</p>

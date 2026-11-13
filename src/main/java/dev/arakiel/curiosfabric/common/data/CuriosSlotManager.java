@@ -1,23 +1,3 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- *
- * Curios is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Curios is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with Curios.  If not, see <https://www.gnu.org/licenses/>.
- *
- */
-
 package dev.arakiel.curiosfabric.common.data;
 
 import com.google.common.collect.ImmutableMap;
@@ -147,22 +127,22 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
           String id = resourcelocation.getPath();
           SlotSource source = sourceMap.getOrDefault(
               resourcelocation, SlotSource.CURIOSFABRIC);
-          if (source == SlotSource.NEOFORGE_CURIOS
+          String nativeId = source == SlotSource.NEOFORGE_CURIOS
               && resourcelocation.getNamespace()
                   .equals(CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE)
-              && NativeSlotMappings.neoforgeNative(id) != null) {
-            id = NativeSlotMappings.neoforgeNative(id);
-          }
+              ? NativeSlotMappings.neoforgeNative(id) : null;
+          final String slotId = nativeId == null ? id : nativeId;
 
           if (!CuriosConditions.matches(entry.getValue().getAsJsonObject())) {
             CuriosFabricConstants.LOG.debug("Skipping loading slot {} as its conditions were not met",
                 resourcelocation);
             continue;
           }
-          SlotType.Builder builder = map.computeIfAbsent(id, (k) -> new SlotType.Builder(id));
+          SlotType.Builder builder =
+              map.computeIfAbsent(slotId, (k) -> new SlotType.Builder(slotId));
           builder.sourceIfAbsent(source);
           fromJson(builder, GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
-          modMap.computeIfAbsent(id, (k) -> ImmutableSet.builder())
+          modMap.computeIfAbsent(slotId, (k) -> ImmutableSet.builder())
               .add(resourcelocation.getNamespace());
         } catch (IllegalArgumentException | JsonParseException e) {
           CuriosFabricConstants.LOG.error("Parsing error loading curio slot {}", resourcelocation, e);
@@ -171,7 +151,6 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
     }
 
     // Neoforge IMC slot registrations
-    // TODO remove in 1.22
     for (Map.Entry<String, SlotType.Builder> entry : NeoforgeCuriosSlotManager.getImcBuilders()
         .entrySet()) {
       SlotType.Builder builder =
@@ -197,22 +176,22 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
         String id = resourcelocation.getPath();
         SlotSource source = sourceMap.getOrDefault(
             resourcelocation, SlotSource.CURIOSFABRIC);
-        if (source == SlotSource.NEOFORGE_CURIOS
+        String nativeId = source == SlotSource.NEOFORGE_CURIOS
             && resourcelocation.getNamespace()
                 .equals(CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE)
-            && NativeSlotMappings.neoforgeNative(id) != null) {
-          id = NativeSlotMappings.neoforgeNative(id);
-        }
+            ? NativeSlotMappings.neoforgeNative(id) : null;
+        final String slotId = nativeId == null ? id : nativeId;
 
         if (!CuriosConditions.matches(entry.getValue().getAsJsonObject())) {
           CuriosFabricConstants.LOG.debug("Skipping loading slot {} as its conditions were not met",
               resourcelocation);
           continue;
         }
-        SlotType.Builder builder = map.computeIfAbsent(id, (k) -> new SlotType.Builder(id));
+        SlotType.Builder builder =
+            map.computeIfAbsent(slotId, (k) -> new SlotType.Builder(slotId));
         builder.sourceIfAbsent(source);
         fromJson(builder, GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
-        modMap.computeIfAbsent(id, (k) -> ImmutableSet.builder())
+          modMap.computeIfAbsent(slotId, (k) -> ImmutableSet.builder())
             .add(resourcelocation.getNamespace());
       } catch (IllegalArgumentException | JsonParseException e) {
         CuriosFabricConstants.LOG.error("Parsing error loading curio slot {}", resourcelocation, e);

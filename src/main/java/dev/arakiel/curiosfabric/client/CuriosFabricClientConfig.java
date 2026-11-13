@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- */
-
 package dev.arakiel.curiosfabric.client;
 
 import dev.arakiel.gemini.config.Config;

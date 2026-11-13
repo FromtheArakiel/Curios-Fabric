@@ -1,14 +1,3 @@
-/*
- * Copyright (c) 2018-2024 C4
- *
- * This file is part of Curios, a mod made for Minecraft.
- *
- * Curios is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 package dev.arakiel.curiosfabric.common.inventory;
 
 import javax.annotation.Nonnull;
@@ -60,12 +49,10 @@ public final class EmptyContainer implements Container {
 
   @Override
   public void setItem(int index, @Nonnull ItemStack stack) {
-    // NO-OP
   }
 
   @Override
   public void setChanged() {
-    // NO-OP
   }
 
   @Override
@@ -75,6 +62,5 @@ public final class EmptyContainer implements Container {
 
   @Override
   public void clearContent() {
-    // NO-OP
   }
 }
