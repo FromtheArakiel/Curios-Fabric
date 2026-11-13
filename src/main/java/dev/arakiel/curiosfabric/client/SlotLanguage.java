@@ -11,13 +11,13 @@
 
 package dev.arakiel.curiosfabric.client;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
-import java.util.function.Predicate;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
@@ -26,47 +26,52 @@ import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
 /** Resolves slot names through the language namespace of their source implementation. */
 public final class SlotLanguage {
 
+  private static final Set<String> REPORTED_MISSING_KEYS = ConcurrentHashMap.newKeySet();
+
   private SlotLanguage() {
   }
 
   public static String name(String slotId) {
-    return translationKey(slotId).map(I18n::get).orElseGet(() -> fallbackName(slotId));
+    String key = translationKey(slotId);
+    reportIfMissing(slotId, key);
+    return I18n.get(key);
   }
 
   public static MutableComponent displayName(String slotId) {
-    return translationKey(slotId)
-        .<MutableComponent>map(Component::translatable)
-        .orElseGet(() -> Component.literal(fallbackName(slotId)));
+    String key = translationKey(slotId);
+    reportIfMissing(slotId, key);
+    return Component.translatable(key);
   }
 
-  /** Returns the first available source-specific language key. */
-  public static Optional<String> translationKey(String slotId) {
+  /**
+   * Returns the theoretical language key for the slot's source.
+   *
+   * <p>No cross-source fallback is attempted: a missing translation intentionally renders as the
+   * raw key, matching vanilla's missing-language behaviour.</p>
+   */
+  public static String translationKey(String slotId) {
     Optional<ISlotType> slot = CuriosSlotManager.CLIENT.getSlot(slotId);
     SlotSource source = slot.map(ISlotType::getSource).orElse(null);
-    return translationKey(slotId, source, I18n::exists);
+    return theoreticalKey(slotId, source);
   }
 
-  static Optional<String> translationKey(String slotId, SlotSource source,
-                                         Predicate<String> exists) {
-    List<String> candidates = new ArrayList<>();
-
-    if (source == SlotSource.NEOFORGE_CURIOS) {
-      SlotSource.NEOFORGE_CURIOS.translationKey(slotId).ifPresent(candidates::add);
-      SlotSource.CURIOSFABRIC.translationKey(slotId).ifPresent(candidates::add);
-    } else if (source == SlotSource.TRINKETS) {
-      TrinketsCompat.translationKeyFor(slotId).ifPresent(candidates::add);
-      SlotSource.CURIOSFABRIC.translationKey(slotId).ifPresent(candidates::add);
-    } else if (source == SlotSource.CURIOSFABRIC) {
-      SlotSource.CURIOSFABRIC.translationKey(slotId).ifPresent(candidates::add);
-    } else {
-      SlotSource.CURIOSFABRIC.translationKey(slotId).ifPresent(candidates::add);
-      SlotSource.NEOFORGE_CURIOS.translationKey(slotId).ifPresent(candidates::add);
-      TrinketsCompat.translationKeyFor(slotId).ifPresent(candidates::add);
+  static String theoreticalKey(String slotId, SlotSource source) {
+    if (source == SlotSource.TRINKETS) {
+      return TrinketsCompat.translationKeyFor(slotId)
+          .orElse("trinkets.slot." + slotId);
     }
-    return candidates.stream().filter(exists).findFirst();
+    return (source == null ? SlotSource.CURIOSFABRIC : source)
+        .translationKey(slotId)
+        .orElse("curiosfabric.identifier." + slotId);
   }
 
-  private static String fallbackName(String slotId) {
-    return Character.toUpperCase(slotId.charAt(0)) + slotId.substring(1).toLowerCase();
+  private static void reportIfMissing(String slotId, String key) {
+    if (!I18n.exists(key) && REPORTED_MISSING_KEYS.add(key)) {
+      SlotSource source = CuriosSlotManager.CLIENT.getSlot(slotId)
+          .map(ISlotType::getSource)
+          .orElse(null);
+      CuriosFabricConstants.LOG.warn("Missing slot translation key {} for slot {} (source {})",
+          key, slotId, source == null ? "unknown" : source.id());
+    }
   }
 }

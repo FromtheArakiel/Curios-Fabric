@@ -12,12 +12,25 @@
 package dev.arakiel.curiosfabric.compat.bridge;
 
 import java.lang.reflect.Method;
-import net.minecraft.world.entity.LivingEntity;
+import java.lang.reflect.Field;
+import java.util.Map;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimap;
+import net.minecraft.core.Holder;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
+import dev.arakiel.curiosfabric.api.CuriosApi;
+import dev.arakiel.curiosfabric.api.SlotAttribute;
 import dev.arakiel.curiosfabric.api.SlotContext;
+import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
+import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
+import net.minecraft.sounds.SoundEvent;
 
 /**
  * Runs a Trinkets item's code hooks through this mod.
@@ -93,6 +106,99 @@ public class TrinketItemAdapter implements ICurioItem {
   public boolean canUnequip(SlotContext slotContext, ItemStack stack) {
     Object result = call("canUnequip", stack, reference(slotContext, stack), slotContext.entity());
     return !(result instanceof Boolean value) || value;
+  }
+
+  @Override
+  public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
+    Object result = call("canEquipFromUse", stack, slotContext.entity());
+    return !(result instanceof Boolean value) || value;
+  }
+
+  @Override
+  public ICurio.SoundInfo getEquipSound(SlotContext slotContext, ItemStack stack) {
+    Object result = call("getEquipSound", stack, reference(slotContext, stack),
+        slotContext.entity());
+    if (result instanceof Holder<?> holder && holder.value() instanceof SoundEvent sound) {
+      return new ICurio.SoundInfo(sound, 1.0F, 1.0F);
+    }
+    return ICurioItem.super.getEquipSound(slotContext, stack);
+  }
+
+  @Override
+  public void curioBreak(SlotContext slotContext, ItemStack stack) {
+    call("onBreak", stack, reference(slotContext, stack), slotContext.entity());
+  }
+
+  @Override
+  public ICurio.DropRule getDropRule(SlotContext slotContext, DamageSource source,
+                                     int lootingLevel, boolean recentlyHit, ItemStack stack) {
+    Object result = call("getDropRule", stack, reference(slotContext, stack),
+        slotContext.entity());
+    if (result instanceof Enum<?> rule) {
+      try {
+        return ICurio.DropRule.valueOf(rule.name());
+      } catch (IllegalArgumentException ignored) {
+        // Unknown Trinkets drop rules keep the Curios default.
+      }
+    }
+    return ICurio.DropRule.DEFAULT;
+  }
+
+  @Override
+  public Multimap<Holder<Attribute>, AttributeModifier> getAttributeModifiers(
+      SlotContext slotContext, ResourceLocation id, ItemStack stack) {
+    Object result = call("getModifiers", stack, reference(slotContext, stack),
+        slotContext.entity(), id);
+    return convertModifiers(result);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Multimap<Holder<Attribute>, AttributeModifier> convertModifiers(Object raw) {
+    Multimap<Holder<Attribute>, AttributeModifier> result = LinkedHashMultimap.create();
+    if (!(raw instanceof Multimap<?, ?> multimap)) {
+      return result;
+    }
+
+    for (Map.Entry<?, ?> entry : multimap.entries()) {
+      if (!(entry.getKey() instanceof Holder<?> holder)
+          || !(entry.getValue() instanceof AttributeModifier modifier)) {
+        continue;
+      }
+
+      String trinketsSlot = slotAttribute(holder.value());
+      if (trinketsSlot == null) {
+        if (holder.value() instanceof Attribute attribute) {
+          result.put((Holder<Attribute>) holder, modifier);
+        }
+        continue;
+      }
+
+      String curiosSlot = TrinketsCompat.curiosSlotOf(trinketsSlot);
+      if (curiosSlot == null && CuriosApi.getSlot(trinketsSlot, false).isPresent()) {
+        curiosSlot = trinketsSlot;
+      }
+      if (curiosSlot == null) {
+        CuriosFabricConstants.LOG.warn(
+            "Trinkets item requested a slot modifier for unknown path {}", trinketsSlot);
+        continue;
+      }
+      result.put(SlotAttribute.getOrCreate(curiosSlot), modifier);
+    }
+    return result;
+  }
+
+  private static String slotAttribute(Object attribute) {
+    if (attribute == null || !attribute.getClass().getName()
+        .equals("dev.emi.trinkets.api.SlotAttributes$SlotEntityAttribute")) {
+      return null;
+    }
+    try {
+      Field field = attribute.getClass().getField("slot");
+      return (String) field.get(attribute);
+    } catch (ReflectiveOperationException exception) {
+      CuriosFabricConstants.LOG.debug("Could not read Trinkets slot modifier path", exception);
+      return null;
+    }
   }
 
   /** The real Trinkets slot reference of this slot, so hooks that inspect it keep working. */

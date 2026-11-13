@@ -56,16 +56,18 @@ Java API 入口为 `dev.arakiel.curiosfabric.api.CuriosApi`。
 
 ## Trinkets 兼容
 
-每个 Trinkets 的 `group/slot` 都会独立映射为
-`trinkets_<group>_<slot>`，不会把不同源槽位合并到同一个 Curios ID。槽位名称直接读取
-Trinkets 的 `trinkets.slot.<group>.<slot>` 翻译，再回退到
-`curiosfabric.identifier.<id>`。
+Trinkets 原生槽位通过语义表映射到 Curios Fabric 原生槽位，例如
+`hand/ring -> ring`、`head/hat -> head`。第三方 `group/slot` 追加为
+`trinkets_<slot>`，忽略 group 表示的身体部位概念。槽位名称只读取该来源的理论翻译键；
+缺失时直接显示原始键名，并记录一次缺失日志。
 
 槽位来源会作为 `SlotSource` 同步到客户端：
 
-- Curios Fabric：`curiosfabric.identifier.<id>`
-- NeoForge Curios：`curios.identifier.<id>`
-- Trinkets：`trinkets.slot.<group>.<slot>`
+- `curiosfabric`：`curiosfabric.identifier.<id>`
+- `neoforgecurios`：`curios.identifier.<id>`
+- `trinkets`：`trinkets.slot.<group>.<slot>`
+
+三种来源之间不会互相回退。
 
 ## Gemini 集成
 

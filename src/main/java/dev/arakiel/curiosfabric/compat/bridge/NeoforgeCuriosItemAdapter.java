@@ -12,9 +12,11 @@
 package dev.arakiel.curiosfabric.compat.bridge;
 
 import com.google.common.collect.Multimap;
+import com.google.common.collect.LinkedHashMultimap;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -27,6 +29,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.SlotContext;
+import dev.arakiel.curiosfabric.api.SlotAttribute;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 
@@ -176,11 +179,37 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
     Object result = call("getAttributeModifiers", 3, context(slotContext), id, stack);
 
     if (result instanceof Multimap<?, ?> multimap) {
-      @SuppressWarnings("unchecked")
-      Multimap<Holder<Attribute>, AttributeModifier> cast = (Multimap<Holder<Attribute>, AttributeModifier>) multimap;
-      return cast;
+      Multimap<Holder<Attribute>, AttributeModifier> converted = LinkedHashMultimap.create();
+      for (Map.Entry<?, ?> entry : multimap.entries()) {
+        if (!(entry.getKey() instanceof Holder<?> holder)
+            || !(entry.getValue() instanceof AttributeModifier modifier)) {
+          continue;
+        }
+        String inheritedSlot = foreignSlotAttribute(holder.value());
+        if (inheritedSlot != null) {
+          converted.put(SlotAttribute.getOrCreate(inheritedSlot), modifier);
+        } else if (holder.value() instanceof Attribute attribute) {
+          @SuppressWarnings("unchecked")
+          Holder<Attribute> cast = (Holder<Attribute>) holder;
+          converted.put(cast, modifier);
+        }
+      }
+      return converted;
     }
-    return com.google.common.collect.LinkedHashMultimap.create();
+    return LinkedHashMultimap.create();
+  }
+
+  private static String foreignSlotAttribute(Object attribute) {
+    if (attribute == null || !attribute.getClass().getName()
+        .equals("top.theillusivec4.curios.api.SlotAttribute")) {
+      return null;
+    }
+    try {
+      return (String) attribute.getClass().getMethod("getIdentifier").invoke(attribute);
+    } catch (ReflectiveOperationException exception) {
+      CuriosFabricConstants.LOG.debug("Could not read NeoForge Curios slot modifier", exception);
+      return null;
+    }
   }
 
   @Override

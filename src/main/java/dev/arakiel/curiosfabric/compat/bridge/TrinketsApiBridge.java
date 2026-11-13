@@ -11,6 +11,8 @@
 
 package dev.arakiel.curiosfabric.compat.bridge;
 
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimap;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -23,13 +25,18 @@ import java.util.function.Predicate;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Tuple;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.CuriosApi;
+import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
+import dev.arakiel.curiosfabric.compat.CompatTargets;
 import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
 
 /**
@@ -63,6 +70,27 @@ public final class TrinketsApiBridge {
           case "getEntity" -> entity;
           case "isEquipped" -> isEquipped(ours, args);
           case "getEquipped", "getAllEquipped" -> equipped(ours, entity, filterOf(args));
+          case "getModifiers" -> trinketModifiers(ours);
+          case "addTemporaryModifiers" -> {
+            ours.addTransientSlotModifiers(curiosModifiers(args[0]));
+            yield null;
+          }
+          case "addPersistentModifiers" -> {
+            ours.addPermanentSlotModifiers(curiosModifiers(args[0]));
+            yield null;
+          }
+          case "removeModifiers" -> {
+            ours.removeSlotModifiers(curiosModifiers(args[0]));
+            yield null;
+          }
+          case "clearModifiers" -> {
+            ours.clearSlotModifiers();
+            yield null;
+          }
+          case "clearCachedModifiers" -> {
+            ours.clearCachedSlotModifiers();
+            yield null;
+          }
           // Deliberately empty and deliberately consistent with the empty getGroups() above.
           // Trinkets' PlayerScreenHandlerMixin walks this map and looks every group name up in the
           // group map; a non-empty inventory paired with an empty group map is a null dereference
@@ -78,6 +106,81 @@ public final class TrinketsApiBridge {
         });
   }
 
+  /** Builds the Trinkets slot-group view from Curios' entity slot registry. */
+  public static Map<String, Object> entitySlots(LivingEntity entity) {
+    return entity == null ? Map.of() : entitySlots(CuriosApi.getEntitySlots(entity));
+  }
+
+  /** Builds the Trinkets slot-group view for any entity used by Trinkets' public overload. */
+  public static Map<String, Object> entitySlots(Entity entity) {
+    if (!TrinketsCompat.hasDiscoveredSlots()) {
+      return Map.of();
+    }
+    if (entity instanceof LivingEntity livingEntity) {
+      return entitySlots(livingEntity);
+    }
+    return entity == null || entity.level() == null
+        ? Map.of()
+        : entitySlots(entity.getType(), entity.level().isClientSide());
+  }
+
+  /** Builds the Trinkets slot-group view for an entity type. */
+  public static Map<String, Object> entitySlots(EntityType<?> type, boolean isClient) {
+    return type == null ? Map.of() : entitySlots(CuriosApi.getEntitySlots(type, isClient));
+  }
+
+  private static Map<String, Object> entitySlots(Map<String, ISlotType> source) {
+    try {
+      Class<?> groupClass = CompatTargets.loadClass(API + "SlotGroup");
+      Class<?> builderClass = CompatTargets.loadClass(API + "SlotGroup$Builder");
+      Class<?> slotTypeClass = CompatTargets.loadClass(API + "SlotType");
+      Class<?> dropRuleClass = CompatTargets.loadClass(API + "TrinketEnums$DropRule");
+      if (groupClass == null || builderClass == null || slotTypeClass == null
+          || dropRuleClass == null) {
+        return Map.of();
+      }
+
+      Map<String, Object> builders = new LinkedHashMap<>();
+      int groupId = 0;
+      for (ISlotType slot : source.values()) {
+        String path = TrinketsCompat.trinketsPathOf(slot.getIdentifier());
+        if (path == null) {
+          continue;
+        }
+        int separator = path.indexOf('/');
+        if (separator < 1 || separator == path.length() - 1) {
+          continue;
+        }
+        String group = path.substring(0, separator);
+        String name = path.substring(separator + 1);
+        Object builder = builders.get(group);
+        if (builder == null) {
+          builder = builderClass.getConstructor(String.class, int.class, int.class)
+              .newInstance(group, groupId++, slot.getOrder());
+          builders.put(group, builder);
+        }
+        Object dropRule = ForeignProxy.enumConstant(
+            dropRuleClass, slot.getDropRule().name(), dropRuleClass.getEnumConstants()[0]);
+        Object trinketSlot = slotTypeClass.getConstructor(
+                String.class, String.class, int.class, int.class, ResourceLocation.class,
+                java.util.Set.class, java.util.Set.class, java.util.Set.class, dropRuleClass)
+            .newInstance(group, name, slot.getOrder(), slot.getSize(), slot.getIcon(),
+                java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), dropRule);
+        builderClass.getMethod("addSlot", String.class, slotTypeClass)
+            .invoke(builder, name, trinketSlot);
+      }
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      for (Map.Entry<String, Object> entry : builders.entrySet()) {
+        result.put(entry.getKey(), builderClass.getMethod("build").invoke(entry.getValue()));
+      }
+      return result;
+    } catch (Throwable throwable) {
+      CuriosFabricConstants.LOG.debug("Could not build the Trinkets entity slot view", throwable);
+      return Map.of();
+    }
+  }
+
   private static boolean isEquipped(ICuriosItemHandler ours, Object[] args) {
 
     if (args.length > 0 && args[0] instanceof Item item) {
@@ -85,6 +188,35 @@ public final class TrinketsApiBridge {
     }
     return args.length > 0 && args[0] instanceof Predicate<?> predicate
         && ours.isEquipped(castPredicate(predicate));
+  }
+
+  private static Multimap<String, AttributeModifier> trinketModifiers(
+      ICuriosItemHandler ours) {
+    Multimap<String, AttributeModifier> result = LinkedHashMultimap.create();
+    ours.getModifiers().forEach((curiosSlot, modifiers) -> {
+      String trinketsPath = TrinketsCompat.trinketsPathOf(curiosSlot);
+      result.put(trinketsPath == null ? curiosSlot : trinketsPath, modifiers);
+    });
+    return result;
+  }
+
+  private static Multimap<String, AttributeModifier> curiosModifiers(Object raw) {
+    Multimap<String, AttributeModifier> result = LinkedHashMultimap.create();
+    if (!(raw instanceof Multimap<?, ?> modifiers)) {
+      return result;
+    }
+    for (Map.Entry<?, ?> entry : modifiers.entries()) {
+      if (!(entry.getKey() instanceof String path)
+          || !(entry.getValue() instanceof AttributeModifier modifier)) {
+        continue;
+      }
+      String curiosSlot = TrinketsCompat.curiosSlotOf(path);
+      if (curiosSlot == null && CuriosApi.getSlot(path, false).isPresent()) {
+        curiosSlot = path;
+      }
+      result.put(curiosSlot == null ? path : curiosSlot, modifier);
+    }
+    return result;
   }
 
   private static Predicate<ItemStack> filterOf(Object[] args) {

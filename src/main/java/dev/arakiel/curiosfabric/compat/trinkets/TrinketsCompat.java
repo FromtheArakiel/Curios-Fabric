@@ -16,11 +16,11 @@ import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
 import dev.arakiel.curiosfabric.common.slottype.SlotType;
 import dev.arakiel.curiosfabric.compat.CompatTargets;
+import dev.arakiel.curiosfabric.compat.NativeSlotMappings;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -126,6 +126,11 @@ public final class TrinketsCompat {
     pathByCuriosSlot = Map.of();
   }
 
+  /** {@code true} after the first slot discovery has completed. */
+  public static boolean hasDiscoveredSlots() {
+    return !slotsByPath.isEmpty();
+  }
+
   public static boolean isTrinketFor(ItemStack stack, String trinketsPath) {
     return isLoaded() && stack.is(tagFor(trinketsPath));
   }
@@ -175,7 +180,7 @@ public final class TrinketsCompat {
 
   private static ISlotType createSlotType(TrinketSlot descriptor) {
     SlotType.Builder builder = new SlotType.Builder(descriptor.curiosId)
-        .source(SlotSource.TRINKETS)
+        .source(descriptor.nativeSlot ? SlotSource.CURIOSFABRIC : SlotSource.TRINKETS)
         .order(descriptor.order, true)
         .size(descriptor.amount, "SET", true)
         .useNativeGui(true, true)
@@ -221,14 +226,17 @@ public final class TrinketsCompat {
             String slotName = String.valueOf(slotEntry.getKey());
             String path = groupName + "/" + slotName;
             Object slot = slotEntry.getValue();
-            String curiosId = curiosSlotId(path);
+            String nativeId = NativeSlotMappings.trinketsNative(path);
+            String curiosId = nativeId != null
+                ? nativeId : NativeSlotMappings.appendTrinketsSlot(path);
             int order = readInt(slot, "getOrder", 1000);
             int amount = Math.max(1, readInt(slot, "getAmount", 1));
             Object rawIcon = slot.getClass().getMethod("getIcon").invoke(slot);
             ResourceLocation icon =
                 rawIcon instanceof ResourceLocation value ? value : FALLBACK_ICON;
             ICurio.DropRule dropRule = readDropRule(slot);
-            slots.put(path, new TrinketSlot(path, curiosId, order, amount, icon, dropRule));
+            slots.put(path, new TrinketSlot(path, curiosId, nativeId != null,
+                order, amount, icon, dropRule));
           }
         }
         if (!slots.isEmpty()) {
@@ -242,17 +250,11 @@ public final class TrinketsCompat {
   }
 
   /**
-   * Builds a collision-free Curios identifier from the complete Trinkets path.
-   *
-   * <p>Using the complete path is deliberate: aliases such as {@code head/hat} and
-   * {@code head/face} remain separate, so a bad conversion is visible instead of being hidden by a
-   * shared target id.</p>
+   * Resolves a Trinkets path to a Curios identifier.
    */
   static String curiosSlotId(String path) {
-    String value = "trinkets_" + path.toLowerCase(Locale.ROOT)
-        .replace('/', '_')
-        .replaceAll("[^a-z0-9_]", "_");
-    return value.replaceAll("_+", "_");
+    String nativeId = NativeSlotMappings.trinketsNative(path);
+    return nativeId != null ? nativeId : NativeSlotMappings.appendTrinketsSlot(path);
   }
 
   /** Resolves the Trinkets translation key associated with one of our mirrored slot ids. */
@@ -294,7 +296,8 @@ public final class TrinketsCompat {
         ResourceLocation.fromNamespaceAndPath(MOD_ID, path)));
   }
 
-  private record TrinketSlot(String path, String curiosId, int order, int amount,
+  private record TrinketSlot(String path, String curiosId, boolean nativeSlot,
+                             int order, int amount,
                              ResourceLocation icon, ICurio.DropRule dropRule) {
   }
 }

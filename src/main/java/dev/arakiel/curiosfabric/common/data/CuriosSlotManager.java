@@ -67,6 +67,7 @@ import dev.arakiel.curiosfabric.common.CuriosFabricConfig;
 import dev.arakiel.curiosfabric.common.util.CuriosConditions;
 import dev.arakiel.curiosfabric.common.slottype.NeoforgeCuriosSlotManager;
 import dev.arakiel.curiosfabric.common.slottype.SlotType;
+import dev.arakiel.curiosfabric.compat.NativeSlotMappings;
 
 public class CuriosSlotManager extends SimpleJsonResourceReloadListener
     implements IdentifiableResourceReloadListener {
@@ -144,6 +145,14 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
 
         try {
           String id = resourcelocation.getPath();
+          SlotSource source = sourceMap.getOrDefault(
+              resourcelocation, SlotSource.CURIOSFABRIC);
+          if (source == SlotSource.NEOFORGE_CURIOS
+              && resourcelocation.getNamespace()
+                  .equals(CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE)
+              && NativeSlotMappings.neoforgeNative(id) != null) {
+            id = NativeSlotMappings.neoforgeNative(id);
+          }
 
           if (!CuriosConditions.matches(entry.getValue().getAsJsonObject())) {
             CuriosFabricConstants.LOG.debug("Skipping loading slot {} as its conditions were not met",
@@ -151,8 +160,7 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
             continue;
           }
           SlotType.Builder builder = map.computeIfAbsent(id, (k) -> new SlotType.Builder(id));
-          builder.sourceIfAbsent(sourceMap.getOrDefault(
-              resourcelocation, SlotSource.CURIOSFABRIC));
+          builder.sourceIfAbsent(source);
           fromJson(builder, GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
           modMap.computeIfAbsent(id, (k) -> ImmutableSet.builder())
               .add(resourcelocation.getNamespace());
@@ -187,6 +195,14 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
 
       try {
         String id = resourcelocation.getPath();
+        SlotSource source = sourceMap.getOrDefault(
+            resourcelocation, SlotSource.CURIOSFABRIC);
+        if (source == SlotSource.NEOFORGE_CURIOS
+            && resourcelocation.getNamespace()
+                .equals(CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE)
+            && NativeSlotMappings.neoforgeNative(id) != null) {
+          id = NativeSlotMappings.neoforgeNative(id);
+        }
 
         if (!CuriosConditions.matches(entry.getValue().getAsJsonObject())) {
           CuriosFabricConstants.LOG.debug("Skipping loading slot {} as its conditions were not met",
@@ -194,8 +210,7 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
           continue;
         }
         SlotType.Builder builder = map.computeIfAbsent(id, (k) -> new SlotType.Builder(id));
-        builder.sourceIfAbsent(sourceMap.getOrDefault(
-            resourcelocation, SlotSource.CURIOSFABRIC));
+        builder.sourceIfAbsent(source);
         fromJson(builder, GsonHelper.convertToJsonObject(entry.getValue(), "top element"));
         modMap.computeIfAbsent(id, (k) -> ImmutableSet.builder())
             .add(resourcelocation.getNamespace());

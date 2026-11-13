@@ -12,6 +12,8 @@
 package dev.arakiel.curiosfabric.compat.mixin.trinkets;
 
 import java.util.Optional;
+import java.util.Map;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -39,4 +41,15 @@ public class TrinketsApiMixin {
       cir.setReturnValue(Optional.of(bridged));
     }
   }
+
+  @Inject(method = "getEntitySlots(Lnet/minecraft/world/entity/Entity;)Ljava/util/Map;",
+      at = @At("HEAD"), cancellable = true)
+  private static void curiosfabric$getEntitySlots(Entity entity,
+                                                  CallbackInfoReturnable<Map<String, ?>> cir) {
+    Map<String, Object> bridged = TrinketsApiBridge.entitySlots(entity);
+    if (!bridged.isEmpty()) {
+      cir.setReturnValue(bridged);
+    }
+  }
+
 }
