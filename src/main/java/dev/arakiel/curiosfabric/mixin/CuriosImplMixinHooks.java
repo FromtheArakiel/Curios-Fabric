@@ -82,7 +82,8 @@ public class CuriosImplMixinHooks {
 
   public static Map<String, ISlotType> getItemStackSlots(ItemStack stack, boolean isClient) {
     Map<String, ISlotType> slots = filteredSlots(slotType -> {
-      SlotContext slotContext = new SlotContext(slotType.getIdentifier(), null, 0, false, true);
+      SlotContext slotContext =
+          new SlotContext(slotType.getMappingIdentifier(), null, 0, false, true);
       SlotResult slotResult = new SlotResult(slotContext, stack);
       return CuriosApi.testCurioPredicates(slotType.getValidators(), slotResult);
     }, CuriosApi.getSlots(isClient));
@@ -95,7 +96,7 @@ public class CuriosImplMixinHooks {
     Map<String, ISlotType> allSlots = CuriosApi.getEntitySlots(livingEntity);
     Map<String, ISlotType> slots = filteredSlots(slotType -> {
       SlotContext slotContext =
-          new SlotContext(slotType.getIdentifier(), livingEntity, 0, false, true);
+          new SlotContext(slotType.getMappingIdentifier(), livingEntity, 0, false, true);
       SlotResult slotResult = new SlotResult(slotContext, stack);
       return CuriosApi.testCurioPredicates(slotType.getValidators(), slotResult);
     }, allSlots);
@@ -115,9 +116,10 @@ public class CuriosImplMixinHooks {
 
     for (ItemTagBridge bridge : CompatibilityBridges.itemTags()) {
       for (String slotId : bridge.slotsFor(stack, client)) {
-        ISlotType slotType = allSlots.get(slotId);
-        if (slotType != null) {
-          result.putIfAbsent(slotId, slotType);
+        for (Map.Entry<String, ISlotType> entry : allSlots.entrySet()) {
+          if (entry.getValue().getMappingIdentifier().equals(slotId)) {
+            result.putIfAbsent(entry.getKey(), entry.getValue());
+          }
         }
       }
     }
@@ -204,6 +206,10 @@ public class CuriosImplMixinHooks {
   public static boolean isStackValid(SlotContext slotContext, ItemStack stack) {
     String id = slotContext.identifier();
     LivingEntity entity = slotContext.entity();
+    boolean clientSide = entity != null ? entity.level().isClientSide()
+        : CuriosFabricConstants.IS_CLIENT;
+    ISlotType targetSlot = CuriosApi.getSlot(id, clientSide).orElse(null);
+    String mappingId = targetSlot == null ? id : targetSlot.getMappingIdentifier();
     Map<String, ISlotType> map;
 
     if (entity != null) {
@@ -214,8 +220,11 @@ public class CuriosImplMixinHooks {
     Set<String> slots = map.keySet();
 
     if (!slots.isEmpty()) {
-      return id.equals("curio") || slots.contains(id) || slots.contains("curio");
-    } else if (id.equals("curio")) {
+      boolean matchingInstance = slots.stream().anyMatch(slot ->
+          CuriosApi.getSlot(slot, clientSide)
+              .map(type -> type.getMappingIdentifier().equals(mappingId)).orElse(false));
+      return mappingId.equals("curio") || matchingInstance || slots.contains("curio");
+    } else if (mappingId.equals("curio")) {
       // If there are no slots available to confirm validity for the generic curio slot,
       // perform fallback checks
 

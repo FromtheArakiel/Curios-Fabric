@@ -78,7 +78,8 @@ public class NeoforgeCuriosApiHooksMixin {
 
   private static Map<String, Object> slotTypes(Map<String, ISlotType> ours) {
     Map<String, Object> bridged = new LinkedHashMap<>();
-    ours.forEach((id, slotType) -> bridged.put(id, NeoforgeCuriosApiBridge.slotType(slotType)));
+    ours.forEach((id, slotType) -> bridged.put(
+        slotType.getMappingIdentifier(), NeoforgeCuriosApiBridge.slotType(slotType)));
     return bridged;
   }
 }

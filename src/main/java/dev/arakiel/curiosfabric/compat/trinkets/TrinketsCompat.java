@@ -170,9 +170,9 @@ public final class TrinketsCompat {
   }
 
   public static boolean isTrinketFor(ItemStack stack, String trinketsPath) {
-    String curiosId = curiosSlotId(trinketsPath);
+    String mappingId = curiosMappingId(trinketsPath);
     return isLoaded() && (stack.is(tagFor(trinketsPath))
-        || stack.is(curiosTagFor(curiosId)));
+        || stack.is(curiosTagFor(mappingId)));
   }
 
   public static Set<String> slotsFor(ItemStack stack) {
@@ -188,14 +188,15 @@ public final class TrinketsCompat {
     State state = state(client);
     Set<String> result = new HashSet<>();
     for (TrinketSlot slot : state.slotsByPath.values()) {
-      if (stack.is(tagFor(slot.path)) || stack.is(curiosTagFor(slot.curiosId))) {
-        result.add(slot.curiosId);
+      if (stack.is(tagFor(slot.path)) || stack.is(curiosTagFor(slot.mappingId))) {
+        result.add(slot.mappingId);
       }
     }
     if (client) {
-      for (String slotId : CuriosApi.getSlots(true).keySet()) {
-        if (stack.is(curiosTagFor(slotId))) {
-          result.add(slotId);
+      for (ISlotType slot : CuriosApi.getSlots(true).values()) {
+        String mappingId = slot.getMappingIdentifier();
+        if (stack.is(curiosTagFor(mappingId))) {
+          result.add(mappingId);
         }
       }
     }
@@ -319,6 +320,7 @@ public final class TrinketsCompat {
 
   private static ISlotType createSlotType(TrinketSlot descriptor) {
     SlotType.Builder builder = new SlotType.Builder(descriptor.curiosId)
+        .mappingIdentifier(descriptor.mappingId)
         .source(descriptor.nativeSlot ? SlotSource.CURIOSFABRIC : SlotSource.TRINKETS)
         .order(descriptor.order, true)
         .size(descriptor.amount, "SET", true)
@@ -376,8 +378,9 @@ public final class TrinketsCompat {
             String path = groupName + "/" + slotName;
             Object slot = slotEntry.getValue();
             String nativeId = NativeSlotMappings.trinketsNative(path);
-            String curiosId = nativeId != null
+            String mappingId = nativeId != null
                 ? nativeId : NativeSlotMappings.appendTrinketsSlot(path);
+            String curiosId = nativeId != null ? nativeId : instanceId(groupName, slotName);
             RawTrinketSlots.RawSlot rawMetadata = rawSlotMetadata.get(path);
             int order = rawMetadata != null
                 ? rawMetadata.order() : readInt(slot, "getOrder", 1000);
@@ -396,7 +399,7 @@ public final class TrinketsCompat {
             Set<ResourceLocation> validators =
                 rawMetadata != null
                     ? mapValidators(rawMetadata.validators()) : readValidators(slot);
-            slots.put(path, new TrinketSlot(path, curiosId, nativeId != null,
+            slots.put(path, new TrinketSlot(path, curiosId, mappingId, nativeId != null,
                 order, amount, icon, validators, dropRule));
           }
         }
@@ -411,10 +414,14 @@ public final class TrinketsCompat {
       Map<String, TrinketSlot> slots = new LinkedHashMap<>();
       rawSlotMetadata.forEach((path, raw) -> {
         String nativeId = NativeSlotMappings.trinketsNative(path);
-        String curiosId = nativeId != null
+        int separator = path.indexOf('/');
+        String group = separator < 0 ? "" : path.substring(0, separator);
+        String slotName = separator < 0 ? path : path.substring(separator + 1);
+        String mappingId = nativeId != null
             ? nativeId : NativeSlotMappings.appendTrinketsSlot(path);
+        String curiosId = nativeId != null ? nativeId : instanceId(group, slotName);
         ResourceLocation icon = ResourceLocation.tryParse(raw.icon());
-        slots.put(path, new TrinketSlot(path, curiosId, nativeId != null,
+        slots.put(path, new TrinketSlot(path, curiosId, mappingId, nativeId != null,
             raw.order(), Math.max(1, raw.amount()),
             icon == null ? FALLBACK_ICON : icon, mapValidators(raw.validators()),
             readDropRule(raw.dropRule())));
@@ -429,7 +436,27 @@ public final class TrinketsCompat {
    */
   static String curiosSlotId(String path) {
     String nativeId = NativeSlotMappings.trinketsNative(path);
+    if (nativeId != null) {
+      return nativeId;
+    }
+    int separator = path.indexOf('/');
+    String group = separator < 0 ? "" : path.substring(0, separator);
+    String slot = separator < 0 ? path : path.substring(separator + 1);
+    return instanceId(group, slot);
+  }
+
+  static String curiosMappingId(String path) {
+    String nativeId = NativeSlotMappings.trinketsNative(path);
     return nativeId != null ? nativeId : NativeSlotMappings.appendTrinketsSlot(path);
+  }
+
+  private static String instanceId(String group, String slot) {
+    String normalizedGroup = group.toLowerCase(java.util.Locale.ROOT)
+        .replaceAll("[^a-z0-9_]", "_");
+    String normalizedSlot = slot.toLowerCase(java.util.Locale.ROOT)
+        .replaceAll("[^a-z0-9_]", "_");
+    return ("trinkets_" + normalizedGroup + "_" + normalizedSlot)
+        .replaceAll("_+", "_").replaceAll("^_+|_+$", "");
   }
 
   static ResourceLocation normalizeIcon(ResourceLocation icon) {
@@ -540,7 +567,7 @@ public final class TrinketsCompat {
     }
   }
 
-  record TrinketSlot(String path, String curiosId, boolean nativeSlot,
+  record TrinketSlot(String path, String curiosId, String mappingId, boolean nativeSlot,
                      int order, int amount,
                      ResourceLocation icon, Set<ResourceLocation> validators,
                      ICurio.DropRule dropRule) {

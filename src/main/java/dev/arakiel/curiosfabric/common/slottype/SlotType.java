@@ -17,6 +17,7 @@ import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 public final class SlotType implements ISlotType {
 
   private final String identifier;
+  private final String mappingIdentifier;
   private final SlotSource source;
   private final int order;
   private final int size;
@@ -29,6 +30,8 @@ public final class SlotType implements ISlotType {
 
   public static ISlotType from(CompoundTag tag) {
     Builder builder = new Builder(tag.getString("Identifier"));
+    builder.mappingIdentifier(tag.contains("MappingIdentifier", Tag.TAG_STRING)
+        ? tag.getString("MappingIdentifier") : tag.getString("Identifier"));
     builder.source(SlotSource.fromId(tag.getString("Source")));
     builder.icon(ResourceLocation.parse(tag.getString("Icon")));
     builder.order(tag.getInt("Order"));
@@ -49,6 +52,7 @@ public final class SlotType implements ISlotType {
 
   private SlotType(Builder builder) {
     this.identifier = builder.identifier;
+    this.mappingIdentifier = builder.mappingIdentifier;
     this.source = builder.source;
     this.order = builder.order;
     this.size = builder.size;
@@ -63,6 +67,11 @@ public final class SlotType implements ISlotType {
   @Override
   public String getIdentifier() {
     return this.identifier;
+  }
+
+  @Override
+  public String getMappingIdentifier() {
+    return this.mappingIdentifier;
   }
 
   @Override
@@ -130,6 +139,15 @@ public final class SlotType implements ISlotType {
   @Override
   public int compareTo(ISlotType otherType) {
 
+    if (this.identifier.equals(otherType.getIdentifier())) {
+      return 0;
+    }
+    int sourceTier = sourceTier(this.source);
+    int otherSourceTier = sourceTier(otherType.getSource());
+
+    if (sourceTier != otherSourceTier) {
+      return Integer.compare(sourceTier, otherSourceTier);
+    }
     if (this.order == otherType.getOrder()) {
       return this.identifier.compareTo(otherType.getIdentifier());
     } else if (this.order > otherType.getOrder()) {
@@ -139,10 +157,15 @@ public final class SlotType implements ISlotType {
     }
   }
 
+  private static int sourceTier(SlotSource source) {
+    return source == SlotSource.CURIOSFABRIC ? 0 : 1;
+  }
+
   @Override
   public CompoundTag writeNbt() {
     CompoundTag tag = new CompoundTag();
     tag.putString("Identifier", this.identifier);
+    tag.putString("MappingIdentifier", this.mappingIdentifier);
     tag.putString("Source", this.source.id());
     tag.putString("Icon", this.icon.toString());
     tag.putInt("Order", this.order);
@@ -163,6 +186,7 @@ public final class SlotType implements ISlotType {
   public static class Builder {
 
     private final String identifier;
+    private String mappingIdentifier;
     private SlotSource source = null;
     private Integer order = null;
     private Integer size = null;
@@ -177,6 +201,7 @@ public final class SlotType implements ISlotType {
 
     public Builder(String identifier) {
       this.identifier = identifier;
+      this.mappingIdentifier = identifier;
     }
 
     public void apply(Builder builder) {
@@ -189,6 +214,10 @@ public final class SlotType implements ISlotType {
 
       if (builder.source != null) {
         sourceIfAbsent(builder.source);
+      }
+
+      if (builder.mappingIdentifier != null) {
+        this.mappingIdentifier = builder.mappingIdentifier;
       }
 
       if (builder.order != null) {
@@ -231,6 +260,11 @@ public final class SlotType implements ISlotType {
 
     public Builder source(SlotSource source) {
       this.source = source;
+      return this;
+    }
+
+    public Builder mappingIdentifier(String mappingIdentifier) {
+      this.mappingIdentifier = mappingIdentifier;
       return this;
     }
 

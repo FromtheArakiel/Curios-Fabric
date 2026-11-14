@@ -63,7 +63,9 @@ public final class NeoforgeCuriosCompat {
     }
 
     for (String slotId : new LinkedHashSet<>(slotIds)) {
-      TagKey<Item> neoforgeTag = neoforgeTag(slotId);
+      ISlotType slot = CuriosApi.getSlot(slotId, false).orElse(null);
+      String mappingId = slot == null ? slotId : slot.getMappingIdentifier();
+      TagKey<Item> neoforgeTag = neoforgeTag(mappingId);
 
       for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(neoforgeTag)) {
         // A Neoforge curio that implements the Neoforge edition's ICurioItem has code hooks; the plain
@@ -72,7 +74,7 @@ public final class NeoforgeCuriosCompat {
             dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter
                 .isNeoforgeCuriosItemItem(holder.value())
                 ? new dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter(holder.value())
-                : new NeoforgeCuriosItem(slotId));
+                : new NeoforgeCuriosItem(mappingId));
       }
     }
   }
@@ -101,10 +103,10 @@ public final class NeoforgeCuriosCompat {
     }
     Set<String> result = new LinkedHashSet<>();
 
-    for (String slotId : CuriosApi.getSlots(client).keySet()) {
-
-      if (stack.is(neoforgeTag(slotId)) || stack.is(CuriosTags.createItemTag(slotId))) {
-        result.add(slotId);
+    for (ISlotType slot : CuriosApi.getSlots(client).values()) {
+      String mappingId = slot.getMappingIdentifier();
+      if (stack.is(neoforgeTag(mappingId)) || stack.is(CuriosTags.createItemTag(mappingId))) {
+        result.add(mappingId);
       }
     }
     return result;

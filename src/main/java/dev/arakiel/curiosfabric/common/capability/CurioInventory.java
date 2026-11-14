@@ -9,10 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.SortedSet;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import net.minecraft.core.HolderLookup;
@@ -29,6 +25,7 @@ import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.ICurioStacksHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 import dev.arakiel.curiosfabric.common.inventory.CurioStacksHandler;
+import dev.arakiel.curiosfabric.common.slottype.SlotOrdering;
 import dev.arakiel.gemini.component.ComponentKey;
 import dev.arakiel.gemini.component.GeminiComponents;
 import dev.arakiel.gemini.component.RespawnableComponent;
@@ -56,7 +53,8 @@ public class CurioInventory implements RespawnableComponent<CurioInventory> {
     LivingEntity livingEntity = curiosItemHandler.getWearer();
 
     if (!this.markDeserialized) {
-      SortedSet<ISlotType> sorted = new TreeSet<>(CuriosApi.getEntitySlots(livingEntity).values());
+      List<ISlotType> sorted =
+          SlotOrdering.order(CuriosApi.getEntitySlots(livingEntity).values());
 
       for (ISlotType slotType : sorted) {
         this.curios.put(
@@ -75,8 +73,9 @@ public class CurioInventory implements RespawnableComponent<CurioInventory> {
 
       ListTag tagList = this.deserialized.getList("Curios", Tag.TAG_COMPOUND);
       Map<String, ICurioStacksHandler> curios = new LinkedHashMap<>();
-      SortedMap<ISlotType, ICurioStacksHandler> sortedCurios = new TreeMap<>();
-      SortedSet<ISlotType> sorted = new TreeSet<>(CuriosApi.getEntitySlots(livingEntity).values());
+      Map<ISlotType, ICurioStacksHandler> sortedCurios = new LinkedHashMap<>();
+      List<ISlotType> sorted =
+          SlotOrdering.order(CuriosApi.getEntitySlots(livingEntity).values());
 
       for (ISlotType slotType : sorted) {
         sortedCurios.put(

@@ -14,6 +14,13 @@ public interface ISlotType extends Comparable<ISlotType> {
   String getIdentifier();
 
   /**
+   * @return The semantic identifier used by item tags and compatibility mappings
+   */
+  default String getMappingIdentifier() {
+    return getIdentifier();
+  }
+
+  /**
    * @return The accessory implementation that provided this slot definition
    */
   default SlotSource getSource() {

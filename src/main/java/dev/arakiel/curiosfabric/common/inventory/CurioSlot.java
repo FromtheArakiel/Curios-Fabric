@@ -67,7 +67,9 @@ public class CurioSlot extends SlotItemHandler {
             this instanceof CosmeticCurioSlot || renders.get(index));
     CuriosApi.getSlot(identifier, player.level())
         .ifPresent(slotType -> this.setBackground(InventoryMenu.BLOCK_ATLAS, slotType.getIcon()));
-    this.extension = ICurioSlotExtension.from(identifier);
+    String mappingId = CuriosApi.getSlot(identifier, player.level())
+        .map(type -> type.getMappingIdentifier()).orElse(identifier);
+    this.extension = ICurioSlotExtension.from(mappingId);
   }
 
   public String getIdentifier() {
@@ -114,7 +116,9 @@ public class CurioSlot extends SlotItemHandler {
     if (this.isCosmetic) {
       builder.append(I18n.get("curiosfabric.cosmetic")).append(" ");
     }
-    return builder.append(SlotLanguage.name(this.identifier)).toString();
+    String mappingId = CuriosApi.getSlot(this.identifier, this.player.level())
+        .map(type -> type.getMappingIdentifier()).orElse(this.identifier);
+    return builder.append(SlotLanguage.name(mappingId)).toString();
   }
 
   @Override

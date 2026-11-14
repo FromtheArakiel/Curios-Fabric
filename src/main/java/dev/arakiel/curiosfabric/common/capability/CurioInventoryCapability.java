@@ -35,6 +35,7 @@ import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotAttribute;
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.SlotResult;
+import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IItemHandlerModifiable;
 import dev.arakiel.curiosfabric.api.type.inventory.ICurioStacksHandler;
@@ -94,7 +95,17 @@ public class CurioInventoryCapability implements ICuriosItemHandler {
 
   @Override
   public Optional<ICurioStacksHandler> getStacksHandler(String identifier) {
-    return Optional.ofNullable(this.curioInventory.asMap().get(identifier));
+    ICurioStacksHandler exact = this.curioInventory.asMap().get(identifier);
+    if (exact != null) {
+      return Optional.of(exact);
+    }
+    for (Map.Entry<String, ICurioStacksHandler> entry : this.curioInventory.asMap().entrySet()) {
+      ISlotType slot = CuriosApi.getSlot(entry.getKey(), this.livingEntity.level()).orElse(null);
+      if (slot != null && slot.getMappingIdentifier().equals(identifier)) {
+        return Optional.of(entry.getValue());
+      }
+    }
+    return Optional.empty();
   }
 
   @Override
