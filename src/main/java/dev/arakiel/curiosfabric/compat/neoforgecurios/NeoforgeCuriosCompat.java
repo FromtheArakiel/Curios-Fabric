@@ -1,6 +1,7 @@
 package dev.arakiel.curiosfabric.compat.neoforgecurios;
 
 import dev.arakiel.curiosfabric.api.CuriosApi;
+import dev.arakiel.curiosfabric.api.CuriosTags;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 import java.util.LinkedHashSet;
@@ -78,7 +79,8 @@ public final class NeoforgeCuriosCompat {
 
   /** {@code true} when the stack is assigned to the slot through the neoforge item tag. */
   public static boolean isNeoforgeCuriosItemFor(String slotId, ItemStack stack) {
-    return isLoaded() && stack.is(neoforgeTag(slotId));
+    return isLoaded() && (stack.is(neoforgeTag(slotId))
+        || stack.is(CuriosTags.createItemTag(slotId)));
   }
 
   /**
@@ -89,16 +91,19 @@ public final class NeoforgeCuriosCompat {
    * @return The slot identifiers, empty when no neoforge content is present
    */
   public static Set<String> slotsFor(ItemStack stack) {
+    return slotsFor(stack, dev.arakiel.curiosfabric.CuriosFabricConstants.IS_CLIENT);
+  }
+
+  public static Set<String> slotsFor(ItemStack stack, boolean client) {
 
     if (!isLoaded() || stack.isEmpty()) {
       return Set.of();
     }
     Set<String> result = new LinkedHashSet<>();
 
-    for (String slotId : CuriosApi.getSlots(dev.arakiel.curiosfabric.CuriosFabricConstants.IS_CLIENT)
-        .keySet()) {
+    for (String slotId : CuriosApi.getSlots(client).keySet()) {
 
-      if (stack.is(neoforgeTag(slotId))) {
+      if (stack.is(neoforgeTag(slotId)) || stack.is(CuriosTags.createItemTag(slotId))) {
         result.add(slotId);
       }
     }
@@ -112,7 +117,10 @@ public final class NeoforgeCuriosCompat {
    * @return The bridging {@link ICurioItem}
    */
   public static Optional<ICurioItem> lookup(ItemStack stack) {
-    Set<String> slots = slotsFor(stack);
+    Set<String> slots = slotsFor(stack, false);
+    if (slots.isEmpty()) {
+      slots = slotsFor(stack, true);
+    }
     return slots.isEmpty() ? Optional.empty() : Optional.of(new NeoforgeCuriosItem(slots.iterator().next()));
   }
 

@@ -18,17 +18,26 @@ public enum TrinketCurio implements ICurioItem {
 
   @Override
   public boolean canEquip(SlotContext slotContext, ItemStack stack) {
-    return mapsTo(slotContext.identifier(), stack);
+    return mapsTo(slotContext.identifier(), stack, side(slotContext));
   }
 
   @Override
   public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
-    return mapsTo(slotContext.identifier(), stack);
+    return mapsTo(slotContext.identifier(), stack, side(slotContext));
   }
 
   /** {@code true} when the stack is registered for the given Curios slot through Trinkets' tags. */
   public static boolean mapsTo(String curiosSlot, ItemStack stack) {
-    String path = TrinketsCompat.trinketsPathOf(curiosSlot);
+    return mapsTo(curiosSlot, stack, false) || mapsTo(curiosSlot, stack, true);
+  }
+
+  private static boolean mapsTo(String curiosSlot, ItemStack stack, boolean client) {
+    String path = TrinketsCompat.trinketsPathOf(curiosSlot, client);
     return path != null && TrinketsCompat.isTrinketFor(stack, path);
+  }
+
+  private static boolean side(SlotContext slotContext) {
+    return slotContext.entity() != null && slotContext.entity().level() != null
+        && slotContext.entity().level().isClientSide();
   }
 }

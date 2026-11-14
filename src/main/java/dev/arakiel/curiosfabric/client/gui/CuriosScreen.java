@@ -19,6 +19,7 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -515,7 +516,17 @@ public class CuriosScreen extends EffectRenderingInventoryScreen<CuriosContainer
       if (pair != null) {
         TextureAtlasSprite textureatlassprite =
             this.minecraft.getTextureAtlas(pair.getFirst()).apply(pair.getSecond());
-        guiGraphics.blit(i, j, 0, 16, 16, textureatlassprite);
+        if (textureatlassprite.contents().name().equals(MissingTextureAtlasSprite.getLocation())) {
+          ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(
+              pair.getSecond().getNamespace(),
+              "textures/" + pair.getSecond().getPath() + ".png");
+          if (this.minecraft.getTextureManager().getTexture(texture)
+              != MissingTextureAtlasSprite.getTexture()) {
+            guiGraphics.blit(texture, i, j, 0, 0, 16, 16, 16, 16);
+          }
+        } else {
+          guiGraphics.blit(i, j, 0, 16, 16, textureatlassprite);
+        }
         flag1 = true;
       }
     }

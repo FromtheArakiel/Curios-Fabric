@@ -12,6 +12,8 @@ import net.minecraft.world.item.ItemStack;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.client.CuriosRendererRegistry;
+import dev.arakiel.curiosfabric.compat.api.CompatibilityBridges;
+import dev.arakiel.curiosfabric.compat.api.RendererBridge;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 
 public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> extends
@@ -55,21 +57,15 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                         .render(finalStack, slotContext, matrixStack, renderLayerParent,
                             renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
                             ageInTicks, netHeadYaw, headPitch));
-              } else if (dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat.isLoaded()) {
-                // Neoforge content mods register their renderers in the Neoforge edition's registry: run
-                // theirs through the compatibility bridge so the item still shows on the body.
-                if (!dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosApiBridge.renderForeign(
-                    new Object[]{finalStack, slotContext, matrixStack, renderLayerParent,
-                        renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
-                        ageInTicks, netHeadYaw, headPitch})) {
-                  renderTrinketsRenderer(id, finalStack, slotContext, i, livingEntity, matrixStack,
-                      renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks, ageInTicks,
-                      netHeadYaw, headPitch);
-                }
               } else {
-                renderTrinketsRenderer(id, finalStack, slotContext, i, livingEntity, matrixStack,
-                    renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks, ageInTicks,
-                    netHeadYaw, headPitch);
+                Object[] arguments = {
+                    renderLayerParent.getModel(), matrixStack, renderTypeBuffer, light, livingEntity,
+                    limbSwing, limbSwingAmount, partialTicks, ageInTicks, netHeadYaw, headPitch};
+                for (RendererBridge bridge : CompatibilityBridges.renderers()) {
+                  if (bridge.render(finalStack, slotContext, arguments)) {
+                    break;
+                  }
+                }
               }
             }
           }
@@ -77,28 +73,4 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
     matrixStack.popPose();
   }
 
-  /**
-   * Runs a renderer that was registered with Trinkets, if Trinkets is installed.
-   *
-   * <p>Trinkets' contract for 1.21.1 is {@code render(stack, slotReference, entityModel,
-   * matrices, vertexConsumers, light, entity, limbAngle, limbDistance, tickDelta,
-   * animationProgress, headYaw, headPitch)}. The slot reference is fabricated by the bridge, so
-   * renderers that inspect their slot keep working.</p>
-   */
-  private void renderTrinketsRenderer(String identifier, ItemStack stack, SlotContext slotContext,
-                                      int index, T livingEntity, PoseStack matrixStack,
-                                      MultiBufferSource renderTypeBuffer, int light,
-                                      float limbSwing, float limbSwingAmount, float partialTicks,
-                                      float ageInTicks, float netHeadYaw, float headPitch) {
-
-    if (!dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat.isLoaded()) {
-      return;
-    }
-    dev.arakiel.curiosfabric.compat.bridge.TrinketsApiBridge.renderForeign(
-        new Object[]{stack,
-            dev.arakiel.curiosfabric.compat.bridge.TrinketsApiBridge.slotReference(identifier, index,
-                livingEntity, stack),
-            this.renderLayerParent.getModel(), matrixStack, renderTypeBuffer, light, livingEntity,
-            limbSwing, limbSwingAmount, partialTicks, ageInTicks, netHeadYaw, headPitch});
-  }
 }

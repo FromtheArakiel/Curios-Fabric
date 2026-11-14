@@ -102,7 +102,8 @@ public final class TrinketsApiBridge {
 
   /** Builds the Trinkets slot-group view for any entity used by Trinkets' public overload. */
   public static Map<String, Object> entitySlots(Entity entity) {
-    if (!TrinketsCompat.hasDiscoveredSlots()) {
+    boolean client = entity != null && entity.level() != null && entity.level().isClientSide();
+    if (!TrinketsCompat.hasDiscoveredSlots(client)) {
       return Map.of();
     }
     if (entity instanceof LivingEntity livingEntity) {
@@ -115,7 +116,7 @@ public final class TrinketsApiBridge {
 
   /** Builds the Trinkets slot-group view for an entity type. */
   public static Map<String, Object> entitySlots(EntityType<?> type, boolean isClient) {
-    return type == null || !TrinketsCompat.hasDiscoveredSlots()
+    return type == null || !TrinketsCompat.hasDiscoveredSlots(isClient)
         ? Map.of()
         : entitySlots(CuriosApi.getEntitySlots(type, isClient));
   }
@@ -134,7 +135,9 @@ public final class TrinketsApiBridge {
       Map<String, Object> builders = new LinkedHashMap<>();
       int groupId = 0;
       for (ISlotType slot : source.values()) {
-        String path = TrinketsCompat.trinketsPathOf(slot.getIdentifier());
+        String path = TrinketsCompat.trinketsPathOf(slot.getIdentifier(), false)
+            == null ? TrinketsCompat.trinketsPathOf(slot.getIdentifier(), true)
+            : TrinketsCompat.trinketsPathOf(slot.getIdentifier(), false);
         if (path == null) {
           continue;
         }
@@ -184,8 +187,10 @@ public final class TrinketsApiBridge {
   private static Multimap<String, AttributeModifier> trinketModifiers(
       ICuriosItemHandler ours) {
     Multimap<String, AttributeModifier> result = LinkedHashMultimap.create();
+    boolean client = ours.getWearer() != null && ours.getWearer().level() != null
+        && ours.getWearer().level().isClientSide();
     ours.getModifiers().forEach((curiosSlot, modifiers) -> {
-      String trinketsPath = TrinketsCompat.trinketsPathOf(curiosSlot);
+      String trinketsPath = TrinketsCompat.trinketsPathOf(curiosSlot, client);
       result.put(trinketsPath == null ? curiosSlot : trinketsPath, modifiers);
     });
     return result;
@@ -201,7 +206,10 @@ public final class TrinketsApiBridge {
           || !(entry.getValue() instanceof AttributeModifier modifier)) {
         continue;
       }
-      String curiosSlot = TrinketsCompat.curiosSlotOf(path);
+      String curiosSlot = TrinketsCompat.curiosSlotOf(path, false);
+      if (curiosSlot == null) {
+        curiosSlot = TrinketsCompat.curiosSlotOf(path, true);
+      }
       if (curiosSlot == null && CuriosApi.getSlot(path, false).isPresent()) {
         curiosSlot = path;
       }
@@ -324,7 +332,8 @@ public final class TrinketsApiBridge {
           || componentClass == null || dropRuleClass == null) {
         return null;
       }
-      String path = TrinketsCompat.trinketsPathOf(curiosSlot);
+      boolean client = entity != null && entity.level() != null && entity.level().isClientSide();
+      String path = TrinketsCompat.trinketsPathOf(curiosSlot, client);
       String group = path == null ? curiosSlot : groupOf(path);
       String slot = path == null ? curiosSlot : slotOf(path);
       int size = Math.max(1, index + 1);
@@ -426,7 +435,9 @@ public final class TrinketsApiBridge {
 
   /** A complete Trinkets {@code group/slot} path is mapped onto a Curios identifier. */
   public static Optional<String> curiosSlotOf(String trinketsPath) {
-    return Optional.ofNullable(TrinketsCompat.curiosSlotOf(trinketsPath));
+    String server = TrinketsCompat.curiosSlotOf(trinketsPath, false);
+    return Optional.ofNullable(server != null
+        ? server : TrinketsCompat.curiosSlotOf(trinketsPath, true));
   }
 
   @SuppressWarnings("unchecked")

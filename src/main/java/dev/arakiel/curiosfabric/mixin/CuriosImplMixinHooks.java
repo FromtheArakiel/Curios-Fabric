@@ -44,6 +44,9 @@ import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.server.SPacketBreak;
+import dev.arakiel.curiosfabric.compat.api.CompatibilityBridges;
+import dev.arakiel.curiosfabric.compat.api.ItemBehaviorBridge;
+import dev.arakiel.curiosfabric.compat.api.ItemTagBridge;
 import dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat;
 import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
 
@@ -83,7 +86,7 @@ public class CuriosImplMixinHooks {
       SlotResult slotResult = new SlotResult(slotContext, stack);
       return CuriosApi.testCurioPredicates(slotType.getValidators(), slotResult);
     }, CuriosApi.getSlots(isClient));
-    addCompatSlots(stack, slots, CuriosApi.getSlots(isClient));
+    addCompatSlots(stack, slots, CuriosApi.getSlots(isClient), isClient);
     return slots;
   }
 
@@ -96,7 +99,7 @@ public class CuriosImplMixinHooks {
       SlotResult slotResult = new SlotResult(slotContext, stack);
       return CuriosApi.testCurioPredicates(slotType.getValidators(), slotResult);
     }, allSlots);
-    addCompatSlots(stack, slots, allSlots);
+    addCompatSlots(stack, slots, allSlots, livingEntity.level().isClientSide());
     return slots;
   }
 
@@ -108,25 +111,14 @@ public class CuriosImplMixinHooks {
    * here. Otherwise they would fail the validators of every slot type.</p>
    */
   private static void addCompatSlots(ItemStack stack, Map<String, ISlotType> result,
-                                     Map<String, ISlotType> allSlots) {
+                                     Map<String, ISlotType> allSlots, boolean client) {
 
-    if (!TrinketsCompat.isLoaded() && !NeoforgeCuriosCompat.isLoaded()) {
-      return;
-    }
-
-    for (String slotId : TrinketsCompat.slotsFor(stack)) {
-      ISlotType slotType = allSlots.get(slotId);
-
-      if (slotType != null) {
-        result.putIfAbsent(slotId, slotType);
-      }
-    }
-
-    for (String slotId : NeoforgeCuriosCompat.slotsFor(stack)) {
-      ISlotType slotType = allSlots.get(slotId);
-
-      if (slotType != null) {
-        result.putIfAbsent(slotId, slotType);
+    for (ItemTagBridge bridge : CompatibilityBridges.itemTags()) {
+      for (String slotId : bridge.slotsFor(stack, client)) {
+        ISlotType slotType = allSlots.get(slotId);
+        if (slotType != null) {
+          result.putIfAbsent(slotId, slotType);
+        }
       }
     }
   }
@@ -170,10 +162,6 @@ public class CuriosImplMixinHooks {
     }
 
     if (curioItem == null) {
-      curioItem = TrinketsCompat.lookup(stack).orElse(null);
-    }
-
-    if (curioItem == null) {
       // A Neoforge mod's curio implements the Neoforge edition's ICurioItem, which carries its code
       // hooks: it has to win over the plain data driven bridge, exactly like the Trinkets case.
       if (NeoforgeCuriosCompat.isLoaded()
@@ -183,8 +171,10 @@ public class CuriosImplMixinHooks {
       }
     }
 
-    if (curioItem == null) {
-      curioItem = NeoforgeCuriosCompat.lookup(stack).orElse(null);
+    for (ItemBehaviorBridge bridge : CompatibilityBridges.itemBehaviors()) {
+      if (curioItem == null) {
+        curioItem = bridge.resolve(stack).orElse(null);
+      }
     }
 
     // A Trinkets item keeps its behavior in Trinket#tick/onEquip/onUnequip: run those hooks too.

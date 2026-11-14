@@ -187,9 +187,10 @@ public class CuriosFabricClientPackets {
   }
 
   public static void handle(final SPacketSyncData data) {
-    dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat.invalidate();
     CuriosSlotManager.applySyncPacket(data.slotData);
     CuriosEntityManager.applySyncPacket(data.entityData);
+    dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat.register(
+        true, "client_sync", false);
   }
 
   public static void handle(final SPacketSyncCurios data) {

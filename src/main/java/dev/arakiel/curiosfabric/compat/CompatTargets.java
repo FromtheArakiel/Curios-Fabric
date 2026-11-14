@@ -27,13 +27,15 @@ public final class CompatTargets {
 
   /** {@code true} when the NeoForge edition of Curios is present. */
   public static boolean isNeoforgeCuriosLoaded() {
-    return GeminiIntegrations.isModLoaded(NEOFORGE_CURIOS)
+    return GeminiIntegrations.hasActiveIntegration(NEOFORGE_CURIOS)
+        || GeminiIntegrations.isModLoaded(NEOFORGE_CURIOS)
         || classExists(NEOFORGE_CURIOS_CLASS);
   }
 
   /** {@code true} when Trinkets is present. */
   public static boolean isTrinketsLoaded() {
-    return GeminiIntegrations.isModLoaded(TRINKETS)
+    return GeminiIntegrations.hasActiveIntegration(TRINKETS)
+        || GeminiIntegrations.isModLoaded(TRINKETS)
         || classExists("dev.emi.trinkets.api.TrinketsApi");
   }
 

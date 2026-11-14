@@ -138,11 +138,14 @@ public class TrinketItemAdapter implements ICurioItem {
       SlotContext slotContext, ResourceLocation id, ItemStack stack) {
     Object result = call("getModifiers", stack, reference(slotContext, stack),
         slotContext.entity(), id);
-    return convertModifiers(result);
+    boolean client = slotContext.entity() != null && slotContext.entity().level() != null
+        && slotContext.entity().level().isClientSide();
+    return convertModifiers(result, client);
   }
 
   @SuppressWarnings("unchecked")
-  private static Multimap<Holder<Attribute>, AttributeModifier> convertModifiers(Object raw) {
+  private static Multimap<Holder<Attribute>, AttributeModifier> convertModifiers(
+      Object raw, boolean client) {
     Multimap<Holder<Attribute>, AttributeModifier> result = LinkedHashMultimap.create();
     if (!(raw instanceof Multimap<?, ?> multimap)) {
       return result;
@@ -162,7 +165,7 @@ public class TrinketItemAdapter implements ICurioItem {
         continue;
       }
 
-      String curiosSlot = TrinketsCompat.curiosSlotOf(trinketsSlot);
+      String curiosSlot = TrinketsCompat.curiosSlotOf(trinketsSlot, client);
       if (curiosSlot == null && CuriosApi.getSlot(trinketsSlot, false).isPresent()) {
         curiosSlot = trinketsSlot;
       }

@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
@@ -30,8 +31,8 @@ import dev.arakiel.curiosfabric.common.event.CuriosFabricEventHandler;
 import dev.arakiel.curiosfabric.common.integration.CuriosIntegrations;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.slottype.NeoforgeCuriosSlotManager;
-import dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat;
-import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
+import dev.arakiel.curiosfabric.compat.api.CompatResourceDependencies;
+import dev.arakiel.curiosfabric.compat.api.CompatibilityBridges;
 import dev.arakiel.curiosfabric.server.SlotHelper;
 import dev.arakiel.curiosfabric.server.command.CurioArgumentType;
 import dev.arakiel.curiosfabric.server.command.CuriosFabricCommand;
@@ -70,7 +71,7 @@ public class CuriosFabric implements ModInitializer {
 
     GeminiEvents.listen(ServerLifecycleEvent.class, event -> {
       if (event.getStage() == ServerLifecycleEvent.Stage.STARTING) {
-        TrinketsCompat.register();
+        CompatibilityBridges.refreshMetadata("server_starting", false);
         CuriosApi.setSlotHelper(new SlotHelper());
         Set<String> slotIds = new HashSet<>();
 
@@ -79,9 +80,21 @@ public class CuriosFabric implements ModInitializer {
           slotIds.add(value.getIdentifier());
         }
         CurioArgumentType.slotIds = slotIds;
-        NeoforgeCuriosCompat.register(slotIds);
+      } else if (event.getStage() == ServerLifecycleEvent.Stage.STARTED) {
+        // Data packs are complete at this point. Merge again in case Trinkets exposed only its
+        // built-in slots during SERVER_STARTING.
+        CompatibilityBridges.refreshMetadata("server_started", false);
+        refreshSlotHelperTypes();
       } else if (event.getStage() == ServerLifecycleEvent.Stage.STOPPED) {
         CuriosApi.setSlotHelper(null);
+      }
+    });
+    ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, manager, success) -> {
+      if (success) {
+        // Trinkets 3.10 can rebuild its entity loader with only built-in slots after /reload.
+        // Merge so a temporarily incomplete upstream snapshot cannot erase third-party mappings.
+        refreshCompatBridges("end_data_pack_reload", false);
+        refreshSlotHelperTypes();
       }
     });
 
@@ -101,13 +114,17 @@ public class CuriosFabric implements ModInitializer {
 
       @Override
       public Collection<ResourceLocation> getFabricDependencies() {
-        return List.of(CuriosSlotManager.ID, CuriosEntityManager.ID);
+        List<ResourceLocation> dependencies =
+            new java.util.ArrayList<>(List.of(CuriosSlotManager.ID, CuriosEntityManager.ID));
+        dependencies.addAll(CompatResourceDependencies.current());
+        return dependencies;
       }
 
       @Override
       public void onResourceManagerReload(ResourceManager manager) {
         CuriosFabricEventHandler.dirtyTags = true;
-        refreshCompatBridges();
+        // This callback can run before Trinkets finishes rebuilding its entity-slot loader.
+        refreshCompatBridges("data_pack_reload", false);
       }
     });
   }
@@ -116,12 +133,20 @@ public class CuriosFabric implements ModInitializer {
    * Re-reads the Trinkets and NeoForge Curios bridges. Called after the data pack tags have been
    * bound, which is the earliest point where the item tags are guaranteed to be available.
    */
-  private static void refreshCompatBridges() {
+  private static void refreshCompatBridges(String reason, boolean authoritative) {
     // Reading the entrypoints again is cheap and makes sure slot types contributed by mods that
     // were initialized after this mod are picked up as well.
     NeoforgeCuriosSlotManager.buildImcSlotTypes();
-    TrinketsCompat.register();
-    NeoforgeCuriosCompat.register(CuriosSlotManager.SERVER.getSlots().keySet());
+    CompatibilityBridges.refreshMetadata(reason, authoritative);
+  }
+
+  private static void refreshSlotHelperTypes() {
+    if (CuriosApi.getSlotHelper() == null) {
+      return;
+    }
+    for (ISlotType slotType : CuriosSlotManager.SERVER.getSlots().values()) {
+      CuriosApi.getSlotHelper().addSlotType(slotType);
+    }
   }
 
   /** Dispatches the extension registration event to the {@code curiosfabric} entrypoints and the bus. */

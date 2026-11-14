@@ -3,6 +3,7 @@ package dev.arakiel.curiosfabric.compat.mixin.neoforgecurios;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -42,6 +43,20 @@ public class NeoforgeCuriosApiHooksMixin {
     if (bridged != null) {
       cir.setReturnValue(Optional.of(bridged));
     }
+  }
+
+  @Inject(method = "getSlots(Z)Ljava/util/Map;", at = @At("HEAD"), cancellable = true)
+  private static void curiosfabric$getSlots(boolean isClient,
+                                            CallbackInfoReturnable<Map<?, ?>> cir) {
+    cir.setReturnValue(slotTypes(CuriosApi.getSlots(isClient)));
+  }
+
+  @Inject(
+      method = "getEntitySlots(Lnet/minecraft/world/entity/EntityType;Z)Ljava/util/Map;",
+      at = @At("HEAD"), cancellable = true)
+  private static void curiosfabric$getEntitySlots(EntityType<?> type, boolean isClient,
+                                                  CallbackInfoReturnable<Map<?, ?>> cir) {
+    cir.setReturnValue(slotTypes(CuriosApi.getEntitySlots(type, isClient)));
   }
 
   @Inject(
