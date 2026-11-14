@@ -151,8 +151,8 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener
     Map<String, ISlotType> configSlots = new HashMap<>();
 
     for (String configSlot : CuriosSlotManager.SERVER.getConfigSlots()) {
-      CuriosSlotManager.SERVER.getSlot(configSlot)
-          .ifPresentOrElse(slot -> configSlots.put(configSlot, slot),
+      CuriosSlotManager.SERVER.resolveSlot(configSlot)
+          .ifPresentOrElse(slot -> configSlots.put(slot.getIdentifier(), slot),
               () -> CuriosFabricConstants.LOG.error("{} is not a registered slot type!", configSlot));
     }
     map.computeIfAbsent(EntityType.PLAYER, (k) -> ImmutableMap.builder()).putAll(configSlots);
@@ -250,7 +250,8 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener
 
     for (JsonElement jsonSlot : jsonSlots) {
       String id = jsonSlot.getAsString();
-      CuriosSlotManager.SERVER.getSlot(id).ifPresentOrElse(slot -> slots.put(id, slot),
+      CuriosSlotManager.SERVER.resolveSlot(id)
+          .ifPresentOrElse(slot -> slots.put(slot.getIdentifier(), slot),
           () -> CuriosFabricConstants.LOG.error("{} is not a registered slot type!", id));
     }
 

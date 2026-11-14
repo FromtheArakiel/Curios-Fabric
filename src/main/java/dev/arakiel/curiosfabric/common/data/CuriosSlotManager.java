@@ -71,7 +71,9 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
 
   /** Our own data layout, followed by the layout of the original Curios edition (bridge input). */
   private static List<String> directories() {
-    return List.of(CuriosFabricConstants.MOD_ID + "/slots", CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE + "/slots");
+    return List.of(
+        CuriosFabricConstants.MOD_ID + "/slots",
+        CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE + "/slots");
   }
 
   private static String externalSlotId(String namespace, String path) {
@@ -286,6 +288,25 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
 
   public Optional<ISlotType> getSlot(String id) {
     return Optional.ofNullable(this.slots.get(id));
+  }
+
+  /** Resolves a data-pack slot reference to its unique slot instance key. */
+  public Optional<ISlotType> resolveSlot(String id) {
+    ISlotType exact = this.slots.get(id);
+    if (exact != null) {
+      return Optional.of(exact);
+    }
+    ResourceLocation location = ResourceLocation.tryParse(id);
+    if (location != null) {
+      ISlotType namespaced =
+          this.slots.get(externalSlotId(location.getNamespace(), location.getPath()));
+      if (namespaced != null) {
+        return Optional.of(namespaced);
+      }
+    }
+    return this.slots.values().stream()
+        .filter(slot -> slot.getMappingIdentifier().equals(id))
+        .findFirst();
   }
 
   public static ListTag getSyncPacket() {
