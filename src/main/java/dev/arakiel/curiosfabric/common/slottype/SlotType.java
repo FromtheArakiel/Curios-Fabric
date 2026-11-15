@@ -2,6 +2,7 @@ package dev.arakiel.curiosfabric.common.slottype;
 
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -19,7 +20,7 @@ public final class SlotType implements ISlotType {
   private final String identifier;
   private final String mappingIdentifier;
   private final SlotSource source;
-  private final int order;
+  private final Integer order;
   private final int size;
   private final boolean useNativeGui;
   private final boolean hasCosmetic;
@@ -34,7 +35,9 @@ public final class SlotType implements ISlotType {
         ? tag.getString("MappingIdentifier") : tag.getString("Identifier"));
     builder.source(SlotSource.fromId(tag.getString("Source")));
     builder.icon(ResourceLocation.parse(tag.getString("Icon")));
-    builder.order(tag.getInt("Order"));
+    if (tag.contains("Order", Tag.TAG_INT)) {
+      builder.order(tag.getInt("Order"), true);
+    }
     builder.size(tag.getInt("Size"));
     builder.useNativeGui(tag.getBoolean("UseNativeGui"));
     builder.hasCosmetic(tag.getBoolean("HasCosmetic"));
@@ -85,8 +88,8 @@ public final class SlotType implements ISlotType {
   }
 
   @Override
-  public int getOrder() {
-    return this.order;
+  public OptionalInt getOrder() {
+    return this.order == null ? OptionalInt.empty() : OptionalInt.of(this.order);
   }
 
   @Override
@@ -148,13 +151,15 @@ public final class SlotType implements ISlotType {
     if (sourceTier != otherSourceTier) {
       return Integer.compare(sourceTier, otherSourceTier);
     }
-    if (this.order == otherType.getOrder()) {
-      return this.identifier.compareTo(otherType.getIdentifier());
-    } else if (this.order > otherType.getOrder()) {
-      return 1;
-    } else {
+    OptionalInt otherOrder = otherType.getOrder();
+    if (this.order != null && otherOrder.isPresent()) {
+      int comparison = Integer.compare(this.order, otherOrder.getAsInt());
+      return comparison != 0 ? comparison : this.identifier.compareTo(otherType.getIdentifier());
+    }
+    if (this.order != null) {
       return -1;
     }
+    return otherOrder.isPresent() ? 1 : this.identifier.compareTo(otherType.getIdentifier());
   }
 
   private static int sourceTier(SlotSource source) {
@@ -168,7 +173,9 @@ public final class SlotType implements ISlotType {
     tag.putString("MappingIdentifier", this.mappingIdentifier);
     tag.putString("Source", this.source.id());
     tag.putString("Icon", this.icon.toString());
-    tag.putInt("Order", this.order);
+    if (this.order != null) {
+      tag.putInt("Order", this.order);
+    }
     tag.putInt("Size", this.size);
     tag.putBoolean("UseNativeGui", this.useNativeGui);
     tag.putBoolean("HasCosmetic", this.hasCosmetic);
@@ -368,10 +375,6 @@ public final class SlotType implements ISlotType {
     }
 
     public SlotType build() {
-
-      if (this.order == null) {
-        this.order = 1000;
-      }
 
       if (this.size == null) {
         this.size = 1;

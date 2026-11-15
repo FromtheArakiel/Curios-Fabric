@@ -150,7 +150,7 @@ public final class TrinketsApiBridge {
         Object builder = builders.get(group);
         if (builder == null) {
           builder = builderClass.getConstructor(String.class, int.class, int.class)
-              .newInstance(group, groupId++, slot.getOrder());
+              .newInstance(group, groupId++, slot.getOrder().orElse(0));
           builders.put(group, builder);
         }
         Object dropRule = ForeignProxy.enumConstant(
@@ -158,7 +158,7 @@ public final class TrinketsApiBridge {
         Object trinketSlot = slotTypeClass.getConstructor(
                 String.class, String.class, int.class, int.class, ResourceLocation.class,
                 java.util.Set.class, java.util.Set.class, java.util.Set.class, dropRuleClass)
-            .newInstance(group, name, slot.getOrder(), slot.getSize(), slot.getIcon(),
+            .newInstance(group, name, slot.getOrder().orElse(0), slot.getSize(), slot.getIcon(),
                 java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), dropRule);
         builderClass.getMethod("addSlot", String.class, slotTypeClass)
             .invoke(builder, name, trinketSlot);

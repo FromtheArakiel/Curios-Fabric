@@ -2,15 +2,20 @@ package dev.arakiel.curiosfabric.common.slottype;
 
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.SlotSource;
-import dev.arakiel.curiosfabric.compat.NativeSlotMappings;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /** Produces the player-facing slot queue from native and third-party definitions. */
 public final class SlotOrdering {
+
+  private static final Set<String> DEFAULT_MAPPING_IDS = Set.of(
+      "back", "belt", "body", "bracelet", "charm",
+      "curio", "hands", "head", "necklace", "ring");
 
   private static final java.util.Comparator<Anchor> ANCHOR_COMPARATOR =
       java.util.Comparator.comparingLong(Anchor::position)
@@ -47,59 +52,75 @@ public final class SlotOrdering {
       occupied.put(nextFree, slot);
       nextFree++;
     }
-    return new ArrayList<>(occupied.values());
+    return deduplicateByMapping(occupied.values());
   }
 
   /**
-   * Remaining definitions retain their discovery order. Trinkets slots are deliberately appended
-   * after native and NeoForge queue entries; a slot that maps to a native identifier is inserted
-   * after the last definition with that mapping.
+   * The fill queue starts with Curios Fabric defaults, then continues through other Curios Fabric,
+   * NeoForge Curios and Trinkets definitions. Upstream definitions mapped to a default are skipped.
    */
   private static List<ISlotType> queuedSlots(Collection<ISlotType> slots) {
-    List<ISlotType> nativeQueue = new ArrayList<>();
+    List<ISlotType> defaults = new ArrayList<>();
+    List<ISlotType> curiosQueue = new ArrayList<>();
+    List<ISlotType> neoforgeQueue = new ArrayList<>();
     List<ISlotType> trinketsQueue = new ArrayList<>();
     for (ISlotType slot : slots) {
-      if (usesAnchor(slot)) {
+      if (usesAnchor(slot) || isIgnoredDefaultMapping(slot)) {
         continue;
       }
-      if (slot.getSource() == SlotSource.TRINKETS) {
-        trinketsQueue.add(slot);
+      if (isCuriosDefault(slot)) {
+        defaults.add(slot);
       } else {
-        nativeQueue.add(slot);
-      }
-    }
-    nativeQueue.sort(java.util.Comparator.comparingInt(ISlotType::getOrder)
-        .thenComparing(ISlotType::getIdentifier));
-
-    // TODO(low): Preserve Trinkets group and slot order if its ordering policy becomes required.
-    for (ISlotType slot : trinketsQueue) {
-      int insertion = nativeQueue.size();
-      for (int index = nativeQueue.size() - 1; index >= 0; index--) {
-        if (nativeQueue.get(index).getMappingIdentifier()
-            .equals(slot.getMappingIdentifier())) {
-          insertion = index + 1;
-          break;
+        switch (slot.getSource()) {
+          case CURIOSFABRIC -> curiosQueue.add(slot);
+          case NEOFORGE_CURIOS -> neoforgeQueue.add(slot);
+          case TRINKETS -> trinketsQueue.add(slot);
         }
       }
-      nativeQueue.add(insertion, slot);
     }
-    return nativeQueue;
+    defaults.sort(java.util.Comparator
+        .comparingInt((ISlotType slot) -> slot.getOrder().orElse(Integer.MAX_VALUE))
+        .thenComparing(ISlotType::getIdentifier));
+    curiosQueue.sort(java.util.Comparator.comparing(ISlotType::getIdentifier));
+    neoforgeQueue.sort(java.util.Comparator.comparing(ISlotType::getIdentifier));
+
+    // TODO(low): Preserve Trinkets group and slot order if its ordering policy becomes required.
+    defaults.addAll(curiosQueue);
+    defaults.addAll(neoforgeQueue);
+    defaults.addAll(trinketsQueue);
+    return defaults;
   }
 
   private static boolean usesAnchor(ISlotType slot) {
-    return slot.getSource() == SlotSource.CURIOSFABRIC
-        || slot.getSource() == SlotSource.NEOFORGE_CURIOS && !isNeoForgeNative(slot);
+    return !isCuriosDefault(slot)
+        && !isIgnoredDefaultMapping(slot)
+        && slot.getSource() != SlotSource.TRINKETS
+        && slot.getOrder().isPresent();
   }
 
-  private static boolean isNeoForgeNative(ISlotType slot) {
-    return slot.getIdentifier().equals(slot.getMappingIdentifier())
-        && NativeSlotMappings.neoforgeNative(slot.getIdentifier()) != null;
+  private static List<ISlotType> deduplicateByMapping(Collection<ISlotType> slots) {
+    Map<String, ISlotType> unique = new LinkedHashMap<>();
+    for (ISlotType slot : slots) {
+      unique.putIfAbsent(slot.getMappingIdentifier(), slot);
+    }
+    return new ArrayList<>(unique.values());
+  }
+
+  private static boolean isCuriosDefault(ISlotType slot) {
+    return slot.getSource() == SlotSource.CURIOSFABRIC
+        && DEFAULT_MAPPING_IDS.contains(slot.getMappingIdentifier());
+  }
+
+  private static boolean isIgnoredDefaultMapping(ISlotType slot) {
+    return slot.getSource() != SlotSource.CURIOSFABRIC
+        && DEFAULT_MAPPING_IDS.contains(slot.getMappingIdentifier());
   }
 
   private static long anchorPosition(ISlotType slot) {
+    int order = slot.getOrder().orElseThrow();
     return slot.getSource() == SlotSource.CURIOSFABRIC
-        ? Math.max(0L, slot.getOrder())
-        : transformedOrder(slot.getOrder());
+        ? Math.max(0L, order)
+        : transformedOrder(order);
   }
 
   static int transformedOrder(int order) {

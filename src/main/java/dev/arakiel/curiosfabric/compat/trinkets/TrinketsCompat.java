@@ -383,7 +383,7 @@ public final class TrinketsCompat {
             String curiosId = nativeId != null ? nativeId : instanceId(groupName, slotName);
             RawTrinketSlots.RawSlot rawMetadata = rawSlotMetadata.get(path);
             int order = rawMetadata != null
-                ? rawMetadata.order() : readInt(slot, "getOrder", 1000);
+                ? rawMetadata.order() : readInt(slot, "getOrder", 0);
             int amount = Math.max(1,
                 rawMetadata != null ? rawMetadata.amount() : readInt(slot, "getAmount", 1));
             Object rawIcon = slot.getClass().getMethod("getIcon").invoke(slot);

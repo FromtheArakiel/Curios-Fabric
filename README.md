@@ -23,7 +23,8 @@ Curios 的 Fabric 1.21.1 实现。包名、命令、命名空间和运行时标�
 }
 ```
 
-原生数据包中的 `order` 是零基锚点位置，上例会将槽位固定到位置 4。
+原生数据包中的 `order` 是零基锚点位置，上例会将槽位固定到位置 4。没有声明 `order`
+的槽位不设置默认数值，直接进入普通队列。
 
 分配给玩家：
 
@@ -49,9 +50,9 @@ Java API 入口为 `dev.arakiel.curiosfabric.api.CuriosApi`。
 槽位按来源处理，不做跨来源的简单合并：
 
 - Curios Fabric 原生槽位使用 `curiosfabric` 数据目录。
-- NeoForge Curios 的原生槽位通过语义映射表去重，第三方槽位保留独立实例。
-- Trinkets 的原生槽位通过语义映射表去重，第三方槽位保留独立实例并忽略 group 表示的身体部位。
-- 映射后的槽位共享物品标签语义，但实例标识仍是唯一的，并可同时被同步和渲染。
+- NeoForge Curios 的原生槽位通过语义映射表映射，第三方槽位保留自己的定义。
+- Trinkets 的原生槽位通过语义映射表映射，第三方槽位忽略 group 表示的身体部位。
+- 最终槽位种类表按 mapping identifier 去重，相同语义槽位只保留排序后最靠前的一项。
 
 Curios Fabric 原生 JSON 的 `order` 直接作为锚点位置。例如 `order: 4` 表示占用位置 4，
 不会经过任何缩放或取整。
@@ -64,11 +65,17 @@ position = max(0, round((order - 20) / 20))
 
 排序过程如下：
 
-1. 先确定 Curios Fabric 原生锚点和 NeoForge 锚点，包括 IMC 注册的第三方槽位。
+1. 只为明确声明了 `order` 的 Curios Fabric 和 NeoForge 槽位创建锚点。
 2. 同一位置的锚点按标识符 `a-z` 排序。
 3. 后面的锚点被占用时继续顺延，例如 `a`、`b` 申请位置 3，`c` 申请位置 4，最终为 `a=3、b=4、c=5`。
-4. NeoForge 原生映射槽位和 Trinkets 槽位没有锚点时进入队列，Trinkets 第三方槽位按发现顺序追加。
-5. 队列从位置 0 开始填补未被锚点占用的位置；映射到原生槽位的 Trinkets 槽位排在同映射原生槽位之后。
+4. 插缝队列依次由 Curios Fabric 默认槽位、其他 Curios Fabric 槽位、NeoForge 槽位和 Trinkets 槽位组成。
+5. NeoForge 或 Trinkets 槽位如果映射到 Curios Fabric 默认 mapping，则直接忽略，不参与锚点或插缝队列。
+6. 队列从位置 0 开始填补未被锚点占用的位置。
+7. 安插完成后按 mapping identifier 去重，保留第一次出现的种类并压缩后续位置。
+
+去重后得到的是槽位种类顺序表，而不是最终容量格顺序。每种槽位只出现一次；随后再按该
+类型的 `size` 展开成连续容量格。例如种类表为 `hand, ring, head`，且 `ring.size=3`，
+最终容量格顺序为 `hand, ring, ring, ring, head`。
 
 Trinkets 自身同时具有 group order 和 slot order，但当前兼容策略暂时不继承这两个值。
 相关改进记录为低优先级 TODO，后续实现时应保持同一 group 的槽位连续，并先按 group、
@@ -103,8 +110,7 @@ Trinkets 原生槽位通过语义表映射到 Curios Fabric 原生槽位，例�
 
 NeoForge Curios 的 `data/<namespace>/curios/slots` 和
 `data/<namespace>/curios/entities` 会直接读取。第三方槽位名即使与原生槽位同名，
-只要来自第三方命名空间，就保持独立实例；原生语义映射仍通过共享的 mapping identifier
-识别物品和标签。
+类型定义会保留来源信息；最终种类顺序表仍按共享的 mapping identifier 去重。
 
 ## Gemini 集成
 
@@ -130,8 +136,8 @@ gradlew.bat test build
 run/smoketest/datapacks/order_anchor_validation
 ```
 
-它覆盖 Curios Fabric 原生 `order=4` 直接锚定到位置 4、重复锚点顺延、队列补位、
-NeoForge 第三方 `ring` 独立实例，以及 Trinkets 第三方槽位忽略自身 `order` 后进入
-后置队列的行为。
+它覆盖 Curios Fabric 原生 `order=4` 直接锚定、无 `order` 的 CuriosFabric/NeoForge
+槽位进入队列、重复锚点顺延、相同 mapping 去重压缩、Trinkets 后置队列，以及 `size=3`
+在种类表之后展开为三个连续容量格的行为。
 
 许可证沿用上游 LGPL-3.0-or-later，版权持有者为 FromtheArakiel，2026。

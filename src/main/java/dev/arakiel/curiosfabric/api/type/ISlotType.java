@@ -1,5 +1,6 @@
 package dev.arakiel.curiosfabric.api.type;
 
+import java.util.OptionalInt;
 import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -33,9 +34,9 @@ public interface ISlotType extends Comparable<ISlotType> {
   ResourceLocation getIcon();
 
   /**
-   * @return The ordering priority of this slot type, lower numbers appear first
+   * @return The explicitly declared ordering priority, or empty when this type belongs in the queue
    */
-  int getOrder();
+  OptionalInt getOrder();
 
   /**
    * @return The number of slots to give by default for this slot type
@@ -88,7 +89,7 @@ public interface ISlotType extends Comparable<ISlotType> {
   @Deprecated(since = "1.20.1", forRemoval = true)
   @ApiStatus.ScheduledForRemoval(inVersion = "1.22")
   default int getPriority() {
-    return this.getOrder();
+    return this.getOrder().orElse(0);
   }
 
   /**

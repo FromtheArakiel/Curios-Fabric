@@ -356,7 +356,7 @@ public final class NeoforgeCuriosApiBridge {
         (name, returnType, parameters, args) -> switch (name) {
           case "getIdentifier" -> ours.getIdentifier();
           case "getIcon" -> ours.getIcon();
-          case "getOrder" -> ours.getOrder();
+          case "getOrder" -> ours.getOrder().orElse(0);
           case "getSize" -> ours.getSize();
           case "useNativeGui" -> ours.useNativeGui();
           case "hasCosmetic" -> ours.hasCosmetic();
