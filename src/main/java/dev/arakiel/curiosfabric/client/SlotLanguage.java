@@ -21,14 +21,16 @@ public final class SlotLanguage {
   }
 
   public static String name(String slotId) {
-    String key = translationKey(slotId);
-    reportIfMissing(slotId, key);
+    Optional<ISlotType> slot = findSlot(slotId);
+    String key = translationKey(slotId, slot);
+    reportIfMissing(slotId, key, slot);
     return I18n.get(key);
   }
 
   public static MutableComponent displayName(String slotId) {
-    String key = translationKey(slotId);
-    reportIfMissing(slotId, key);
+    Optional<ISlotType> slot = findSlot(slotId);
+    String key = translationKey(slotId, slot);
+    reportIfMissing(slotId, key, slot);
     return Component.translatable(key);
   }
 
@@ -39,9 +41,21 @@ public final class SlotLanguage {
    * raw key, matching vanilla's missing-language behaviour.</p>
    */
   public static String translationKey(String slotId) {
-    Optional<ISlotType> slot = CuriosSlotManager.CLIENT.getSlot(slotId);
-    SlotSource source = slot.map(ISlotType::getSource).orElse(null);
-    return theoreticalKey(slotId, source);
+    return translationKey(slotId, findSlot(slotId));
+  }
+
+  private static String translationKey(String slotId, Optional<ISlotType> slot) {
+    return slot.map(SlotLanguage::theoreticalKey)
+        .orElseGet(() -> theoreticalKey(slotId, null));
+  }
+
+  static String theoreticalKey(ISlotType slot) {
+    if (slot.getSource() == SlotSource.TRINKETS) {
+      return TrinketsCompat.translationKeyFor(slot.getIdentifier())
+          .orElse("trinkets.slot." + slot.getIdentifier());
+    }
+    return slot.getSource().translationKey(slot.getMappingIdentifier())
+        .orElse("curiosfabric.identifier." + slot.getMappingIdentifier());
   }
 
   static String theoreticalKey(String slotId, SlotSource source) {
@@ -54,11 +68,19 @@ public final class SlotLanguage {
         .orElse("curiosfabric.identifier." + slotId);
   }
 
-  private static void reportIfMissing(String slotId, String key) {
+  private static Optional<ISlotType> findSlot(String slotId) {
+    Optional<ISlotType> exact = CuriosSlotManager.CLIENT.getSlot(slotId);
+    if (exact.isPresent()) {
+      return exact;
+    }
+    return CuriosSlotManager.CLIENT.getSlots().values().stream()
+        .filter(slot -> slot.getMappingIdentifier().equals(slotId))
+        .findFirst();
+  }
+
+  private static void reportIfMissing(String slotId, String key, Optional<ISlotType> slot) {
     if (!I18n.exists(key) && REPORTED_MISSING_KEYS.add(key)) {
-      SlotSource source = CuriosSlotManager.CLIENT.getSlot(slotId)
-          .map(ISlotType::getSource)
-          .orElse(null);
+      SlotSource source = slot.map(ISlotType::getSource).orElse(null);
       CuriosFabricConstants.LOG.warn("Missing slot translation key {} for slot {} (source {})",
           key, slotId, source == null ? "unknown" : source.id());
     }

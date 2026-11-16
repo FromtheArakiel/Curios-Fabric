@@ -1,95 +1,452 @@
 # Curios Fabric
 
-Curios 的 Fabric 1.21.1 实现。包名、命令、命名空间和运行时标识统一为
-`curiosfabric`，并通过兼容桥读取 NeoForge Curios 与 Trinkets 的槽位、实体绑定和物品标签。
+Curios Fabric is a Fabric implementation of the Curios accessory API for Minecraft 1.21.1. It
+provides a data-driven slot system, an inventory API, item lifecycle hooks, attribute modifiers,
+events, client rendering integration, and compatibility bridges for NeoForge Curios and Trinkets.
 
-- 模组 ID：`curiosfabric`
-- Java 根包：`dev.arakiel.curiosfabric`
-- 游戏内命令：`/curiosfabric`
-- 数据目录：`data/<namespace>/curiosfabric/slots|entities`
-- 物品标签：`#curiosfabric:<slot>`
-- 必需前置：Fabric API、Gemini `>=1.0.5`
-- 可选前置：JEI、Mod Menu、Kilt、NeoForge Curios、Trinkets
+The public API lives under:
 
-## 开发接口
+```text
+dev.arakiel.curiosfabric.api
+```
 
-声明槽位：
+Compatibility is intentionally not guaranteed with older Curios Fabric builds. The current runtime
+identity, command, data namespace, package root, and item tags all use `curiosfabric`.
+
+## Requirements
+
+| Requirement | Version |
+| --- | --- |
+| Minecraft | 1.21.1 |
+| Java | 21 or newer |
+| Fabric Loader | 0.19.5 or newer |
+| Fabric API | Current 1.21.1 build |
+| Gemini | 1.0.5 or newer |
+
+Optional integrations include JEI, Mod Menu, Kilt, NeoForge Curios, and Trinkets.
+
+## Quick Start
+
+A normal Curios Fabric mod needs three pieces:
+
+1. Slot definitions.
+2. Entity-to-slot assignments.
+3. Item tags or custom validators that decide which items fit each slot.
+
+### 1. Define a slot
+
+Create:
+
+```text
+data/<namespace>/curiosfabric/slots/<slot_id>.json
+```
+
+Example:
 
 ```json
 {
-  "order": 4,
-  "icon": "curiosfabric:slot/empty_ring_slot",
-  "validators": ["curiosfabric:tag"]
+  "order": 40,
+  "size": 2,
+  "icon": "examplemod:slot/empty_sigil_slot",
+  "validators": [
+    "curiosfabric:tag"
+  ],
+  "add_cosmetic": true,
+  "render_toggle": true,
+  "drop_rule": "DEFAULT"
 }
 ```
 
-原生数据包中的 `order` 是零基锚点位置，上例会将槽位固定到位置 4。没有声明 `order`
-的槽位不设置默认数值，直接进入普通队列。
+The file path becomes the slot identifier. The example above defines a slot named `sigil`.
 
-分配给玩家：
+### 2. Assign slots to entities
+
+Create:
+
+```text
+data/<namespace>/curiosfabric/entities/<assignment_id>.json
+```
+
+Example:
 
 ```json
 {
-  "entities": ["player"],
-  "slots": ["ring"]
+  "entities": [
+    "minecraft:player",
+    "#minecraft:undead"
+  ],
+  "slots": [
+    "sigil"
+  ]
 }
 ```
 
-在 `fabric.mod.json` 中使用 `curiosfabric` entrypoint 注册槽位扩展：
+### 3. Assign items to the slot
+
+Create:
+
+```text
+data/curiosfabric/tags/item/sigil.json
+```
+
+Example:
+
+```json
+{
+  "replace": false,
+  "values": [
+    "examplemod:silver_sigil"
+  ]
+}
+```
+
+This contributes to the item tag:
+
+```text
+#curiosfabric:sigil
+```
+
+The default `curiosfabric:tag` validator accepts items in the matching
+`#curiosfabric:<slot>` tag. Items in `#curiosfabric:curio` are accepted by all tag-validated slots.
+
+## Data Pack Reference
+
+### Slot JSON
+
+Path:
+
+```text
+data/<namespace>/curiosfabric/slots/<slot_id>.json
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `replace` | boolean | `false` | Replaces overlapping properties when another definition uses the same slot identifier. |
+| `order` | integer | absent | Optional type-level anchor. Curios Fabric uses the value directly; NeoForge Curios values are normalized separately. Omit it to place the type in the fill queue. |
+| `size` | integer | `1` | Number of capacity slots created for this slot type. Must be zero or greater. |
+| `operation` | string | `SET` | How a merged `size` is applied: `SET`, `ADD`, or `REMOVE`. |
+| `icon` | resource location | empty curio icon | Atlas sprite used as the slot background. |
+| `drop_rule` | string | `DEFAULT` | `DEFAULT`, `ALWAYS_DROP`, `ALWAYS_KEEP`, or `DESTROY`. |
+| `add_cosmetic` | boolean | `false` | Adds a parallel cosmetic capacity slot for each functional capacity slot. |
+| `use_native_gui` | boolean | `true` | Shows the capacity slots in the Curios GUI. |
+| `render_toggle` | boolean | `true` | Allows each capacity slot to toggle whether its equipped item renders. |
+| `validators` | string array | `["curiosfabric:tag"]` | Predicate IDs that decide whether an item can use the slot. |
+| `fabric:load_conditions` | array | absent | Fabric resource conditions. The file is skipped when its conditions do not match. |
+
+#### Important ordering rules
+
+- `order` belongs to the slot type, not to each capacity slot.
+- A slot with `size: 3` is still one type in the type-order table.
+- If `order` is absent, the type enters the fill queue.
+- Explicit Curios Fabric anchors use the declared integer directly.
+- Explicit NeoForge Curios anchors use:
+
+```text
+max(0, round((neoForgeOrder - 20) / 20))
+```
+
+- Equal anchor positions are sorted by identifier, then later anchors move forward.
+- The fill queue starts with Curios Fabric defaults, followed by other Curios Fabric definitions,
+  NeoForge Curios definitions, and finally Trinkets definitions.
+- NeoForge or Trinkets definitions already mapped to a Curios Fabric default are ignored.
+- After filling anchors and gaps, slot types are deduplicated by `mappingIdentifier`.
+- `size` is expanded only after the final type-order table is known.
+
+For example, a type-order table of `hand, ring, head` with `ring.size = 3` produces:
+
+```text
+hand, ring, ring, ring, head
+```
+
+### Entity JSON
+
+Path:
+
+```text
+data/<namespace>/curiosfabric/entities/<assignment_id>.json
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `replace` | boolean | `false` | Replaces previously loaded slot assignments for the affected entities. |
+| `entities` | string array | empty | Entity IDs or entity-type tags such as `#minecraft:undead`. |
+| `slots` | string array | empty | Curios slot identifiers assigned to the listed entities. |
+| `fabric:load_conditions` | array | absent | Fabric resource conditions controlling whether the file is loaded. |
+
+### Validators and predicates
+
+Built-in validators:
+
+| Predicate | Behavior |
+| --- | --- |
+| `curiosfabric:tag` | Accepts the matching `#curiosfabric:<slot>` tag and the universal `#curiosfabric:curio` tag. |
+| `curiosfabric:all` | Accepts every item. |
+| `curiosfabric:none` | Rejects every item. |
+
+NeoForge-compatible aliases under `curios:tag`, `curios:all`, and `curios:none` are also accepted.
+Custom predicates can be registered with:
+
+```java
+CuriosApi.registerCurioPredicate(
+    ResourceLocation.fromNamespaceAndPath("examplemod", "magic_only"),
+    slotResult -> slotResult.stack().is(ExampleItems.MAGIC_ITEM)
+);
+```
+
+### Data generation
+
+`CuriosDataProvider` can generate both slot and entity files:
+
+```java
+public final class ExampleCuriosData extends CuriosDataProvider {
+  public ExampleCuriosData(PackOutput output,
+                           CompletableFuture<HolderLookup.Provider> registries) {
+    super("examplemod", output, registries);
+  }
+
+  @Override
+  public void generate(HolderLookup.Provider registries) {
+    createSlot("sigil")
+        .size(2)
+        .icon(ResourceLocation.fromNamespaceAndPath("examplemod", "slot/empty_sigil_slot"))
+        .addValidator(ResourceLocation.fromNamespaceAndPath("curiosfabric", "tag"));
+
+    createEntities("player")
+        .addPlayer()
+        .addSlots("sigil");
+  }
+}
+```
+
+## Java API Guide
+
+### Public package map
+
+| Package | Purpose |
+| --- | --- |
+| `dev.arakiel.curiosfabric.api` | Main entry point, slot context/results, tags, attributes, data generation, and triggers. |
+| `api.type` | Slot metadata and source information. |
+| `api.type.capability` | Item behavior and entity inventory contracts. |
+| `api.type.inventory` | Equipped/cosmetic handlers and dynamic slot storage. |
+| `api.type.data` | Slot and entity data-generation interfaces. |
+| `api.event` | Curios gameplay events and event bus. |
+| `api.client` | Rendering interfaces and renderer registry. |
+| `api.extensions` | Per-slot extensions registered through the entrypoint. |
+
+### `CuriosApi`
+
+`dev.arakiel.curiosfabric.api.CuriosApi` is the preferred static entry point.
+
+Common queries:
+
+```java
+Optional<ISlotType> slot = CuriosApi.getSlot("ring", level);
+Map<String, ISlotType> slots = CuriosApi.getEntitySlots(entity);
+Map<String, ISlotType> validSlots = CuriosApi.getItemStackSlots(stack, entity);
+Optional<ICurio> behavior = CuriosApi.getCurio(stack);
+Optional<ICuriosItemHandler> inventory = CuriosApi.getCuriosInventory(entity);
+```
+
+Find equipped items:
+
+```java
+CuriosApi.getCuriosInventory(entity).ifPresent(handler -> {
+  handler.findFirstCurio(ExampleItems.MAGIC_RING).ifPresent(result -> {
+    SlotContext context = result.slotContext();
+    ItemStack stack = result.stack();
+    // Use the equipped ring.
+  });
+});
+```
+
+Check whether a stack fits a slot:
+
+```java
+boolean valid = CuriosApi.isStackValid(slotContext, stack);
+```
+
+### Item behavior with `ICurioItem`
+
+`ICurioItem` is intended to be implemented directly by an `Item`.
+
+```java
+public final class MagicRingItem extends Item implements ICurioItem {
+  public MagicRingItem(Properties properties) {
+    super(properties);
+  }
+
+  @Override
+  public void curioTick(SlotContext slotContext, ItemStack stack) {
+    // Called on both sides while equipped.
+  }
+
+  @Override
+  public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
+    return true;
+  }
+}
+```
+
+Important lifecycle methods:
+
+| Method | Purpose |
+| --- | --- |
+| `curioTick` | Called every tick while equipped. |
+| `onEquip` | Called after the stack enters a slot or its data changes. |
+| `onUnequip` | Called after the stack leaves a slot or its data changes. |
+| `canEquip` / `canUnequip` | Final item-specific equip restrictions. |
+| `onEquipFromUse` | Called when equipped directly by using the item. |
+| `getEquipSound` | Controls equip feedback. |
+| `canSync`, `writeSyncData`, `readSyncData` | Optional server-to-client state synchronization. |
+| `getDropRule` | Per-stack death behavior override. |
+| `getFortuneLevel` / `getLootingLevel` | Fortune and Looting integration. |
+
+`ICurio` is the stack-bound capability form of the same behavior. Most mods should prefer
+`ICurioItem` unless they need to register behavior separately with
+`CuriosApi.registerCurio(item, curio)`.
+
+### Inventory API
+
+`ICuriosItemHandler` represents an entity's Curios inventory:
+
+```java
+handler.getCurios();                         // Slot identifier -> stacks handler
+handler.getStacksHandler("ring");            // One slot type
+handler.getEquippedCurios();                 // Flattened equipped item view
+handler.findFirstCurio(stack -> stack.is(...));
+handler.findCurios("ring", "necklace");
+handler.setEquippedCurio("ring", 0, stack);
+```
+
+Each `ICurioStacksHandler` contains:
+
+- `getStacks()`: functional capacity slots.
+- `getCosmeticStacks()`: cosmetic capacity slots.
+- `getRenders()`: per-capacity render toggles.
+- `getActiveStates()`: per-capacity active states.
+- Permanent and transient slot modifiers.
+
+Capacity slots are addressed with an integer index. The index is local to the slot type.
+
+### Attributes and slot modifiers
+
+Item behavior can expose equipped attribute modifiers:
+
+```java
+@Override
+public Multimap<Holder<Attribute>, AttributeModifier> getAttributeModifiers(
+    SlotContext slotContext, ResourceLocation id, ItemStack stack) {
+  Multimap<Holder<Attribute>, AttributeModifier> modifiers = LinkedHashMultimap.create();
+  modifiers.put(Attributes.MAX_HEALTH,
+      new AttributeModifier(id, 4.0, AttributeModifier.Operation.ADD_VALUE));
+  return modifiers;
+}
+```
+
+Use stable modifier IDs so equip and unequip calculations remain symmetric.
+
+Slot count modifiers can be added transiently or permanently through `ICuriosItemHandler`, or
+attached to item data with the helpers in `CurioAttributeModifiers` and `CuriosApi`.
+
+### Events
+
+Register listeners through `CuriosEventBus`:
+
+```java
+CuriosEventBus.register(CurioChangeEvent.class, event -> {
+  LivingEntity wearer = event.getEntity();
+  String slot = event.getIdentifier();
+  ItemStack previous = event.getFrom();
+  ItemStack current = event.getTo();
+});
+```
+
+Available events:
+
+| Event | Purpose |
+| --- | --- |
+| `CurioChangeEvent` | An equipped stack changed on the server. |
+| `CurioCanEquipEvent` | Allows or denies an equip attempt. |
+| `CurioCanUnequipEvent` | Allows or denies an unequip attempt. |
+| `CurioAttributeModifierEvent` | Modifies calculated attribute modifiers. |
+| `DropRulesEvent` | Adds stack-specific death drop rule overrides. |
+| `CurioDropsEvent` | Observes or cancels dropped curio entities. |
+| `SlotModifiersUpdatedEvent` | A slot type's capacity changed through modifiers. |
+
+### Client rendering
+
+Register renderers from the client entry point:
+
+```java
+CuriosRendererRegistry.register(ExampleItems.MAGIC_RING, MagicRingRenderer::new);
+```
+
+Implement `ICurioRenderer#render`. `SlotContext` supplies the wearer, type, index, cosmetic state,
+and visibility. `ICurioRenderer` also provides helpers for sneaking and head/body rotation.
+
+### Entry points and extensions
+
+Declare a Curios entry point in `fabric.mod.json`:
 
 ```json
 "entrypoints": {
-  "curiosfabric": ["com.example.MyCuriosEntrypoint"]
+  "curiosfabric": [
+    "com.example.example.ExampleCuriosEntrypoint"
+  ]
 }
 ```
 
-Java API 入口为 `dev.arakiel.curiosfabric.api.CuriosApi`。
+Implement `CuriosEntrypoint`:
 
-## 槽位来源与顺序
+```java
+public final class ExampleCuriosEntrypoint implements CuriosEntrypoint {
+  @Override
+  public void createSlots(Consumer<SlotTypeMessage> registrar) {
+    registrar.accept(new SlotTypeMessage.Builder("pocket").size(2).build());
+  }
 
-槽位按来源处理，不做跨来源的简单合并：
-
-- Curios Fabric 原生槽位使用 `curiosfabric` 数据目录。
-- NeoForge Curios 的原生槽位通过语义映射表映射，第三方槽位保留自己的定义。
-- Trinkets 的原生槽位通过语义映射表映射，第三方槽位忽略 group 表示的身体部位。
-- 最终槽位种类表按 mapping identifier 去重，相同语义槽位只保留排序后最靠前的一项。
-
-Curios Fabric 原生 JSON 的 `order` 直接作为锚点位置。例如 `order: 4` 表示占用位置 4，
-不会经过任何缩放或取整。
-
-NeoForge Curios 的 `order` 会转换为内部锚点：
-
-```text
-position = max(0, round((order - 20) / 20))
+  @Override
+  public void registerExtensions(RegisterCuriosExtensionsEvent event) {
+    // Register ICurioSlotExtension instances.
+  }
+}
 ```
 
-排序过程如下：
+Data packs are the preferred slot-definition mechanism. `SlotTypeMessage` remains available for
+source compatibility and code-driven integrations.
 
-1. 只为明确声明了 `order` 的 Curios Fabric 和 NeoForge 槽位创建锚点。
-2. 同一位置的锚点按标识符 `a-z` 排序。
-3. 后面的锚点被占用时继续顺延，例如 `a`、`b` 申请位置 3，`c` 申请位置 4，最终为 `a=3、b=4、c=5`。
-4. 插缝队列依次由 Curios Fabric 默认槽位、其他 Curios Fabric 槽位、NeoForge 槽位和 Trinkets 槽位组成。
-5. NeoForge 或 Trinkets 槽位如果映射到 Curios Fabric 默认 mapping，则直接忽略，不参与锚点或插缝队列。
-6. 队列从位置 0 开始填补未被锚点占用的位置。
-7. 安插完成后按 mapping identifier 去重，保留第一次出现的种类并压缩后续位置。
+## Compatibility
 
-去重后得到的是槽位种类顺序表，而不是最终容量格顺序。每种槽位只出现一次；随后再按该
-类型的 `size` 展开成连续容量格。例如种类表为 `hand, ring, head`，且 `ring.size=3`，
-最终容量格顺序为 `hand, ring, ring, ring, head`。
+### NeoForge Curios
 
-Trinkets 自身同时具有 group order 和 slot order，但当前兼容策略暂时不继承这两个值。
-相关改进记录为低优先级 TODO，后续实现时应保持同一 group 的槽位连续，并先按 group、
-再按 group 内 slot 的顺序处理。
+Curios Fabric reads:
 
-来源同时决定槽位语言的继承位置：
+```text
+data/<namespace>/curios/slots
+data/<namespace>/curios/entities
+#curios:<slot>
+```
 
-- `curiosfabric`：`curiosfabric.identifier.<id>`
-- `neoforgecurios`：`curios.identifier.<id>`
-- `trinkets`：`trinkets.slot.<group>.<slot>`
+Third-party definitions remain distinct identifiers while sharing semantic mapping IDs. Upstream
+definitions mapped to Curios Fabric defaults are ignored so they cannot create duplicate default
+slots.
 
-三种来源之间不会互相回退。缺失翻译时直接显示原始键名，并写入一次缺失日志。
+### Trinkets
 
-## 命令
+Trinkets native paths are mapped to Curios Fabric semantics, for example:
+
+```text
+hand/ring    -> ring
+offhand/ring -> ring
+head/hat     -> head
+```
+
+Third-party Trinkets paths are exposed as Curios slot types. Trinkets group order and slot order are
+currently not inherited; this is a low-priority compatibility TODO.
+
+## Commands
+
+Commands require permission level 2.
 
 ```mcfunction
 /curiosfabric add ring @s 1
@@ -98,46 +455,30 @@ Trinkets 自身同时具有 group order 和 slot order，但当前兼容策略�
 /curiosfabric list
 ```
 
-命令需要权限等级 2。`add`/`set`/`remove` 修改的是已注册槽位类型在玩家身上的容量；
-新的槽位类型仍然通过数据包定义。
+`add`, `set`, and `remove` change the player's capacity for an already registered type. They do not
+create new slot types.
 
-## Trinkets 兼容
-
-Trinkets 原生槽位通过语义表映射到 Curios Fabric 原生槽位，例如
-`hand/ring -> ring`、`head/hat -> head`。第三方 `group/slot` 追加为
-`trinkets_<slot>`，忽略 group 表示的身体部位概念。槽位元数据、实体绑定、物品标签和
-渲染入口均由兼容桥读取；服务端与客户端使用各自的加载器快照。
-
-NeoForge Curios 的 `data/<namespace>/curios/slots` 和
-`data/<namespace>/curios/entities` 会直接读取。第三方槽位名即使与原生槽位同名，
-类型定义会保留来源信息；最终种类顺序表仍按共享的 mapping identifier 去重。
-
-## Gemini 集成
-
-- 配置：TOML，注解字段和自动配置 GUI
-- 网络：Gemini `NetworkChannel`、握手和 bundle
-- 事件：Gemini 事件总线
-- 实体数据：Gemini Entity Components
-- 可选模组检测：Gemini Integrations
-
-旧 JSON 配置和旧 Curios Fabric 数据不提供兼容。
-
-## 构建
+## Building
 
 ```text
-gradlew.bat test build
+gradlew.bat clean build
 ```
 
-## 验证数据包
-
-锚点排序的服务端验证数据包位于：
+The primary output is:
 
 ```text
-run/smoketest/datapacks/order_anchor_validation
+build/libs/curiosfabric-fabric-1.21.1-<version>.jar
 ```
 
-它覆盖 Curios Fabric 原生 `order=4` 直接锚定、无 `order` 的 CuriosFabric/NeoForge
-槽位进入队列、重复锚点顺延、相同 mapping 去重压缩、Trinkets 后置队列，以及 `size=3`
-在种类表之后展开为三个连续容量格的行为。
+## Credits
 
-许可证沿用上游 LGPL-3.0-or-later，版权持有者为 FromtheArakiel，2026。
+Curios and its original API design were created by **C4 (TheIllusiveC4)**. Curios Fabric builds on
+that public API and gameplay model, and also acknowledges the Curios contributors, Trinkets
+maintainers, and the Fabric ecosystem projects that make compatibility work possible.
+
+This project is maintained by **FromtheArakiel**.
+
+## License
+
+Curios Fabric is distributed under the **GNU Lesser General Public License 3.0 or later**.
+Portions derived from upstream Curios retain the upstream copyright and license notices.

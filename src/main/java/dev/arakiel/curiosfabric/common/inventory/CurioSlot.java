@@ -116,9 +116,7 @@ public class CurioSlot extends SlotItemHandler {
     if (this.isCosmetic) {
       builder.append(I18n.get("curiosfabric.cosmetic")).append(" ");
     }
-    String mappingId = CuriosApi.getSlot(this.identifier, this.player.level())
-        .map(type -> type.getMappingIdentifier()).orElse(this.identifier);
-    return builder.append(SlotLanguage.name(mappingId)).toString();
+    return builder.append(SlotLanguage.name(this.identifier)).toString();
   }
 
   @Override
