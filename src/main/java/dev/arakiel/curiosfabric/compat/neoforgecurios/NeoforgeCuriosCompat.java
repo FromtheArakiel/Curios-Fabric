@@ -112,6 +112,12 @@ public final class NeoforgeCuriosCompat {
     return result;
   }
 
+  /** {@code true} when the stack uses the upstream NeoForge tag for this exact mapping. */
+  public static boolean hasNeoforgeItemTag(String mappingId, ItemStack stack, boolean client) {
+    return isLoaded() && !stack.isEmpty() && mappingId != null
+        && stack.is(neoforgeTag(mappingId));
+  }
+
   /**
    * Resolves the curio behavior of a neoforge tagged item without requiring it to be pre-registered.
    *

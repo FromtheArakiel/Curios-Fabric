@@ -203,6 +203,16 @@ public final class TrinketsCompat {
     return result;
   }
 
+  /** {@code true} when the stack uses an upstream Trinkets tag for this exact mapping. */
+  public static boolean hasTrinketsItemTag(String mappingId, ItemStack stack, boolean client) {
+    if (!isLoaded() || stack.isEmpty() || mappingId == null) {
+      return false;
+    }
+    ensureSlots(client);
+    return state(client).slotsByPath.values().stream()
+        .anyMatch(slot -> slot.mappingId.equals(mappingId) && stack.is(tagFor(slot.path)));
+  }
+
   public static Optional<ICurioItem> lookup(ItemStack stack) {
     return slotsFor(stack, false).isEmpty() && slotsFor(stack, true).isEmpty()
         ? Optional.empty() : Optional.of(TrinketCurio.INSTANCE);
@@ -318,7 +328,7 @@ public final class TrinketsCompat {
         reason, effective.keySet(), added, retained, removed);
   }
 
-  private static ISlotType createSlotType(TrinketSlot descriptor) {
+  static ISlotType createSlotType(TrinketSlot descriptor) {
     SlotType.Builder builder = new SlotType.Builder(descriptor.curiosId)
         .mappingIdentifier(descriptor.mappingId)
         .source(descriptor.nativeSlot ? SlotSource.CURIOSFABRIC : SlotSource.TRINKETS)
@@ -326,7 +336,7 @@ public final class TrinketsCompat {
         .size(descriptor.amount, "SET", true)
         .useNativeGui(true, true)
         .hasCosmetic(false, true)
-        .renderToggle(false, true)
+        .renderToggle(true, true)
         .dropRule(descriptor.dropRule);
     if (descriptor.icon != null) {
       builder.icon(descriptor.icon);

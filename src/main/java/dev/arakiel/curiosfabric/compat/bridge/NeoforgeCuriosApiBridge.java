@@ -419,6 +419,14 @@ public final class NeoforgeCuriosApiBridge {
     return false;
   }
 
+  /** {@code true} when the Neoforge registry has a renderer for this item. */
+  public static boolean hasRenderer(ItemStack stack) {
+    Class<?> registry = dev.arakiel.curiosfabric.compat.CompatTargets
+        .loadClass(API + "client.CuriosRendererRegistry");
+    return registry != null && stack != null && !stack.isEmpty()
+        && foreignRenderer(registry, stack.getItem()) != null;
+  }
+
   /**
    * Resolves a renderer that a Neoforge mod registered with the Neoforge edition's registry.
    *

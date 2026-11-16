@@ -433,6 +433,22 @@ public final class TrinketsApiBridge {
     return false;
   }
 
+  /** {@code true} when Trinkets has a renderer for this item. */
+  public static boolean hasRenderer(ItemStack stack) {
+    try {
+      Class<?> registry = dev.arakiel.curiosfabric.compat.CompatTargets
+          .loadClass(API + "client.TrinketRendererRegistry");
+      if (registry == null || stack == null || stack.isEmpty()) {
+        return false;
+      }
+      Object optional = registry.getMethod("getRenderer", Item.class)
+          .invoke(null, stack.getItem());
+      return optional instanceof Optional<?> found && found.isPresent();
+    } catch (Throwable throwable) {
+      return false;
+    }
+  }
+
   /** A complete Trinkets {@code group/slot} path is mapped onto a Curios identifier. */
   public static Optional<String> curiosSlotOf(String trinketsPath) {
     String server = TrinketsCompat.curiosSlotOf(trinketsPath, false);

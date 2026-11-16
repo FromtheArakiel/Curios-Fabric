@@ -18,8 +18,7 @@
     "trinkets.TrinketSlotDataAccessor",
     "trinkets.TrinketSlotLoaderAccessor",
     "trinkets.TrinketSlotAccessor",
-    "trinkets.TrinketsApiMixin",
-    "trinkets.TrinketsClientMixin"
+    "trinkets.TrinketsApiMixin"
   ],
   "client": [
     "client.MinecraftForeignScreensMixin"
