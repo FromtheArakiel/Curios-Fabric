@@ -4,7 +4,9 @@ import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.CuriosTags;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.Holder;
@@ -32,9 +34,9 @@ import net.minecraft.world.item.ItemStack;
  *       {@code minecraft:attribute_modifiers} component, so worn attributes carry over as is.</li>
  * </ul>
  *
- * <p>Known limitation: an {@code ICurioItem} implementation from a Neoforge mod is a different class
- * than {@code dev.arakiel.curiosfabric.api.type.capability.ICurioItem}, so its <em>code</em> hooks
- * (curioTick, onEquip, ...) cannot run. Only the data driven half of the contract is bridged.</p>
+ * <p>The data layer is complemented by the runtime bridge: {@code ICurioItem} implementations,
+ * item capabilities registered under {@code CuriosCapability.ITEM}, item tags and slot data all
+ * resolve to the same CuriosFabric inventory.</p>
  */
 public final class NeoforgeCuriosCompat {
 
@@ -62,21 +64,22 @@ public final class NeoforgeCuriosCompat {
       return;
     }
 
+    Map<Item, Set<String>> assignments = new LinkedHashMap<>();
     for (String slotId : new LinkedHashSet<>(slotIds)) {
-      ISlotType slot = CuriosApi.getSlot(slotId, false).orElse(null);
+      ISlotType slot = CuriosApi.getSlot(slotId, false)
+          .orElse(CuriosApi.getSlot(slotId, true).orElse(null));
       String mappingId = slot == null ? slotId : slot.getMappingIdentifier();
       TagKey<Item> neoforgeTag = neoforgeTag(mappingId);
 
       for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(neoforgeTag)) {
-        // A Neoforge curio that implements the Neoforge edition's ICurioItem has code hooks; the plain
-        // tag bridge would drop them, and the registry is consulted before the adapters.
-        CuriosApi.registerCurio(holder.value(),
-            dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter
-                .isNeoforgeCuriosItemItem(holder.value())
-                ? new dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter(holder.value())
-                : new NeoforgeCuriosItem(mappingId));
+        assignments.computeIfAbsent(holder.value(), ignored -> new LinkedHashSet<>()).add(mappingId);
       }
     }
+    assignments.forEach((item, slots) -> CuriosApi.registerCurio(item,
+        dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter
+            .isNeoforgeCuriosItemItem(item)
+            ? new dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter(item)
+            : new NeoforgeCuriosItem(slots)));
   }
 
   /** {@code true} when the stack is assigned to the slot through the neoforge item tag. */
@@ -112,12 +115,6 @@ public final class NeoforgeCuriosCompat {
     return result;
   }
 
-  /** {@code true} when the stack uses the upstream NeoForge tag for this exact mapping. */
-  public static boolean hasNeoforgeItemTag(String mappingId, ItemStack stack, boolean client) {
-    return isLoaded() && !stack.isEmpty() && mappingId != null
-        && stack.is(neoforgeTag(mappingId));
-  }
-
   /**
    * Resolves the curio behavior of a neoforge tagged item without requiring it to be pre-registered.
    *
@@ -129,7 +126,7 @@ public final class NeoforgeCuriosCompat {
     if (slots.isEmpty()) {
       slots = slotsFor(stack, true);
     }
-    return slots.isEmpty() ? Optional.empty() : Optional.of(new NeoforgeCuriosItem(slots.iterator().next()));
+    return slots.isEmpty() ? Optional.empty() : Optional.of(new NeoforgeCuriosItem(slots));
   }
 
   /** The Curios slot type of a neoforge slot, or {@code null} when it is not registered. */

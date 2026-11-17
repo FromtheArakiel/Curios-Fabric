@@ -27,40 +27,58 @@ import net.minecraft.sounds.SoundEvent;
  * <p>Trinkets content (for example Potion Ring) puts its behavior in {@code Trinket#tick},
  * {@code onEquip} and {@code onUnequip}. Items tagged for a slot only carry their attributes, so
  * those hooks have to be invoked explicitly while the item lives in a Curios slot. They are called
- * through reflection; the {@code SlotReference} argument is passed as {@code null}, which is fine
- * for the common implementations that only look at the stack and the wearer, and any failure is
- * caught so a broken hook cannot break the tick loop.</p>
+ * through reflection with a synthesized Trinkets {@code SlotReference}; any failure is caught so a
+ * broken foreign hook cannot break the tick loop.</p>
  */
 public class TrinketItemAdapter implements ICurioItem {
 
   private static final String TRINKET = "dev.emi.trinkets.api.Trinket";
   private static final String TRINKET_ITEM = "dev.emi.trinkets.api.TrinketItem";
+  private static final String TRINKETS_API = "dev.emi.trinkets.api.TrinketsApi";
 
   private final Item item;
+  private final Object delegate;
 
   public TrinketItemAdapter(Item item) {
     this.item = item;
+    this.delegate = trinket(item);
   }
 
-  /** {@code true} when the item is a Trinkets trinket. */
+  /** {@code true} when Trinkets has a non-default behavior registered for the item. */
   public static boolean isTrinket(Item item) {
-    Class<?> trinket = dev.arakiel.curiosfabric.compat.CompatTargets.loadClass(TRINKET);
+    return trinket(item) != null;
+  }
 
+  private static Object trinket(Item item) {
+    Class<?> api = dev.arakiel.curiosfabric.compat.CompatTargets.loadClass(TRINKETS_API);
+    if (api != null) {
+      try {
+        Object resolved = api.getMethod("getTrinket", Item.class).invoke(null, item);
+        Object fallback = api.getMethod("getDefaultTrinket").invoke(null);
+        if (resolved != null && resolved != fallback) {
+          return resolved;
+        }
+      } catch (Throwable ignored) {
+        // Fall through to the item's implemented interface.
+      }
+    }
+    Class<?> trinket = dev.arakiel.curiosfabric.compat.CompatTargets.loadClass(TRINKET);
     if (trinket != null && trinket.isInstance(item)) {
-      return true;
+      return item;
     }
     Class<?> trinketItem = dev.arakiel.curiosfabric.compat.CompatTargets.loadClass(TRINKET_ITEM);
-    return trinketItem != null && trinketItem.isInstance(item);
+    return trinketItem != null && trinketItem.isInstance(item) ? item : null;
   }
 
   private Object call(String name, Object... args) {
 
     try {
 
-      for (Method method : this.item.getClass().getMethods()) {
+      Object target = this.delegate == null ? this.item : this.delegate;
+      for (Method method : target.getClass().getMethods()) {
 
-        if (method.getName().equals(name) && method.getParameterCount() == args.length) {
-          return method.invoke(this.item, args);
+        if (method.getName().equals(name) && accepts(method, args)) {
+          return method.invoke(target, args);
         }
       }
     } catch (Throwable throwable) {
@@ -68,6 +86,52 @@ public class TrinketItemAdapter implements ICurioItem {
           throwable);
     }
     return null;
+  }
+
+  private static boolean accepts(Method method, Object[] args) {
+    if (method.getParameterCount() != args.length) {
+      return false;
+    }
+    Class<?>[] types = method.getParameterTypes();
+    for (int index = 0; index < types.length; index++) {
+      Object argument = args[index];
+      if (argument == null) {
+        if (types[index].isPrimitive()) {
+          return false;
+        }
+      } else if (!box(types[index]).isInstance(argument)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static Class<?> box(Class<?> type) {
+    if (!type.isPrimitive()) {
+      return type;
+    }
+    if (type == boolean.class) {
+      return Boolean.class;
+    }
+    if (type == byte.class) {
+      return Byte.class;
+    }
+    if (type == short.class) {
+      return Short.class;
+    }
+    if (type == int.class) {
+      return Integer.class;
+    }
+    if (type == long.class) {
+      return Long.class;
+    }
+    if (type == float.class) {
+      return Float.class;
+    }
+    if (type == double.class) {
+      return Double.class;
+    }
+    return Character.class;
   }
 
   @Override

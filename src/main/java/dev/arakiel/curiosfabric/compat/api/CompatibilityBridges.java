@@ -17,15 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 
 /** Registered compatibility modules, expressed through their individual bridge facets. */
 public final class CompatibilityBridges {
-
-  private static final Set<String> REPORTED_RENDER_ROUTES = ConcurrentHashMap.newKeySet();
 
   private static final CompatibilityBridge TRINKETS = new CompatibilityBridge() {
     @Override
@@ -63,10 +60,6 @@ public final class CompatibilityBridges {
           return path != null && TrinketsCompat.isTrinketFor(stack, path);
         }
 
-        @Override
-        public boolean originatesFrom(String mappingId, ItemStack stack, boolean client) {
-          return TrinketsCompat.hasTrinketsItemTag(mappingId, stack, client);
-        }
       };
     }
 
@@ -117,8 +110,11 @@ public final class CompatibilityBridges {
 
     @Override
     public SlotMetadataBridge metadata() {
-      return (reason, authoritative) ->
-          NeoforgeCuriosCompat.register(CuriosSlotManager.SERVER.getSlots().keySet());
+      return (reason, authoritative) -> {
+        Set<String> slotIds = new LinkedHashSet<>(CuriosSlotManager.SERVER.getSlots().keySet());
+        slotIds.addAll(CuriosSlotManager.CLIENT.getSlots().keySet());
+        NeoforgeCuriosCompat.register(slotIds);
+      };
     }
 
     @Override
@@ -134,10 +130,6 @@ public final class CompatibilityBridges {
           return NeoforgeCuriosCompat.isNeoforgeCuriosItemFor(slotId, stack);
         }
 
-        @Override
-        public boolean originatesFrom(String mappingId, ItemStack stack, boolean client) {
-          return NeoforgeCuriosCompat.hasNeoforgeItemTag(mappingId, stack, client);
-        }
       };
     }
 
@@ -172,7 +164,7 @@ public final class CompatibilityBridges {
         @Override
         public boolean render(ItemStack stack, SlotContext context, Object[] arguments) {
           return NeoforgeCuriosApiBridge.renderForeign(prepend(stack,
-              NeoforgeCuriosApiBridge.foreignContext(context),
+              context,
               ForeignRenderArguments.neoforge(arguments)));
         }
       };
@@ -198,8 +190,8 @@ public final class CompatibilityBridges {
   }
 
   /**
-   * Selects exactly one renderer source. Default CuriosFabric slots may contain items supplied by an
-   * upstream API, so those fall back to the item's real upstream tag rather than probing renderers.
+   * Selects exactly one renderer source. Third-party slots keep their declared source; shared
+   * CuriosFabric slots use the sole registered renderer owner and refuse ambiguous ownership.
    */
   public static Optional<RendererBridge> rendererFor(ISlotType slotType, ItemStack stack,
                                                      boolean client) {
@@ -208,7 +200,8 @@ public final class CompatibilityBridges {
             .filter(CompatibilityBridge::isLoaded)
             .filter(bridge -> bridge.source() == source)
             .findFirst())
-        .map(CompatibilityBridge::renderer);
+        .map(CompatibilityBridge::renderer)
+        .filter(renderer -> renderer.supports(stack));
   }
 
   /** Resolves the compatibility API that owns rendering for the source or upstream item. */
@@ -216,31 +209,10 @@ public final class CompatibilityBridges {
                                                        boolean client) {
     SlotSource source = slotType == null ? SlotSource.CURIOSFABRIC : slotType.getSource();
     List<CompatibilityBridge> active = active();
-    String mappingId = slotType == null ? null : slotType.getMappingIdentifier();
-    Optional<SlotSource> resolved =
-        resolveRendererSource(source, mappingId, stack, client, active);
-    String reportKey = BuiltInRegistries.ITEM.getKey(stack.getItem()) + "|"
-        + (slotType == null ? "<missing>" : slotType.getIdentifier());
-    if (REPORTED_RENDER_ROUTES.add(reportKey)) {
-      List<String> tagEvidence = active.stream()
-          .map(bridge -> bridge.source().id() + "="
-              + (mappingId != null
-                  && bridge.tags().originatesFrom(mappingId, stack, client)))
-          .toList();
-      List<String> rendererEvidence = active.stream()
-          .map(bridge -> bridge.source().id() + "=" + bridge.renderer().supports(stack))
-          .toList();
-      CuriosFabricConstants.LOG.info(
-          "CURIOS_RENDER_DEBUG route item={} slot={} slotSource={} tags={} renderers={} resolved={}",
-          BuiltInRegistries.ITEM.getKey(stack.getItem()),
-          slotType == null ? "<missing>" : slotType.getIdentifier(), source,
-          tagEvidence, rendererEvidence, resolved.orElse(null));
-    }
-    return resolved;
+    return resolveRendererSource(source, stack, active);
   }
 
-  static Optional<SlotSource> resolveRendererSource(SlotSource source, String mappingId,
-                                                    ItemStack stack, boolean client,
+  static Optional<SlotSource> resolveRendererSource(SlotSource source, ItemStack stack,
                                                     List<CompatibilityBridge> bridges) {
     if (source != SlotSource.CURIOSFABRIC) {
       return bridges.stream()
@@ -254,13 +226,6 @@ public final class CompatibilityBridges {
         .toList();
     if (rendererMatches.size() == 1) {
       return Optional.of(rendererMatches.getFirst().source());
-    }
-    if (rendererMatches.size() > 1 && mappingId != null) {
-      List<CompatibilityBridge> tagMatches = rendererMatches.stream()
-          .filter(bridge -> bridge.tags().originatesFrom(mappingId, stack, client))
-          .toList();
-      return Optional.of((tagMatches.size() == 1
-          ? tagMatches.getFirst() : rendererMatches.getFirst()).source());
     }
     return Optional.empty();
   }

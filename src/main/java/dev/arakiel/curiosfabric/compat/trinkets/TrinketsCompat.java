@@ -203,16 +203,6 @@ public final class TrinketsCompat {
     return result;
   }
 
-  /** {@code true} when the stack uses an upstream Trinkets tag for this exact mapping. */
-  public static boolean hasTrinketsItemTag(String mappingId, ItemStack stack, boolean client) {
-    if (!isLoaded() || stack.isEmpty() || mappingId == null) {
-      return false;
-    }
-    ensureSlots(client);
-    return state(client).slotsByPath.values().stream()
-        .anyMatch(slot -> slot.mappingId.equals(mappingId) && stack.is(tagFor(slot.path)));
-  }
-
   public static Optional<ICurioItem> lookup(ItemStack stack) {
     return slotsFor(stack, false).isEmpty() && slotsFor(stack, true).isEmpty()
         ? Optional.empty() : Optional.of(TrinketCurio.INSTANCE);

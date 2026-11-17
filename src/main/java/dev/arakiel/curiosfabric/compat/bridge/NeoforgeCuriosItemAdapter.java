@@ -13,7 +13,9 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Item.TooltipContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
@@ -53,7 +55,7 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
 
       for (Method method : this.item.getClass().getMethods()) {
 
-        if (method.getName().equals(name) && method.getParameterCount() == parameterCount) {
+        if (method.getName().equals(name) && accepts(method, parameterCount, args)) {
           return method.invoke(this.item, args);
         }
       }
@@ -62,6 +64,62 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
           name, this.item, throwable);
     }
     return null;
+  }
+
+  private static boolean accepts(Method method, int parameterCount, Object[] args) {
+    if (method.getParameterCount() != parameterCount) {
+      return false;
+    }
+    Class<?>[] types = method.getParameterTypes();
+    for (int index = 0; index < types.length; index++) {
+      Object argument = args[index];
+      if (argument == null) {
+        if (types[index].isPrimitive()) {
+          return false;
+        }
+      } else if (!box(types[index]).isInstance(argument)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static Class<?> box(Class<?> type) {
+    if (!type.isPrimitive()) {
+      return type;
+    }
+    if (type == boolean.class) {
+      return Boolean.class;
+    }
+    if (type == byte.class) {
+      return Byte.class;
+    }
+    if (type == short.class) {
+      return Short.class;
+    }
+    if (type == int.class) {
+      return Integer.class;
+    }
+    if (type == long.class) {
+      return Long.class;
+    }
+    if (type == float.class) {
+      return Float.class;
+    }
+    if (type == double.class) {
+      return Double.class;
+    }
+    return Character.class;
+  }
+
+  private boolean overrides(String name, int parameterCount) {
+    for (Method method : this.item.getClass().getMethods()) {
+      if (method.getName().equals(name) && method.getParameterCount() == parameterCount
+          && !method.getDeclaringClass().isInterface()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private Object context(SlotContext slotContext) {
@@ -113,6 +171,22 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
   }
 
   @Override
+  public ICurio.SoundInfo getEquipSound(SlotContext slotContext, ItemStack stack) {
+    Object result = call("getEquipSound", 2, context(slotContext), stack);
+    Object sound = ForeignProxy.read(result, "soundEvent",
+        ForeignProxy.read(result, "getSoundEvent", null));
+    Object volume = ForeignProxy.read(result, "volume",
+        ForeignProxy.read(result, "getVolume", null));
+    Object pitch = ForeignProxy.read(result, "pitch",
+        ForeignProxy.read(result, "getPitch", null));
+    if (sound instanceof SoundEvent event && volume instanceof Number volumeValue
+        && pitch instanceof Number pitchValue) {
+      return new ICurio.SoundInfo(event, volumeValue.floatValue(), pitchValue.floatValue());
+    }
+    return ICurioItem.super.getEquipSound(slotContext, stack);
+  }
+
+  @Override
   public void curioBreak(SlotContext slotContext, ItemStack stack) {
     call("curioBreak", 2, context(slotContext), stack);
   }
@@ -136,8 +210,9 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
   @Override
   public ICurio.DropRule getDropRule(SlotContext slotContext, DamageSource source,
                                      int lootingLevel, boolean recentlyHit, ItemStack stack) {
-    Object result = call("getDropRule", 5, context(slotContext), source, lootingLevel, recentlyHit,
-        stack);
+    Object result = overrides("getDropRule", 4) || !overrides("getDropRule", 5)
+        ? call("getDropRule", 4, context(slotContext), source, recentlyHit, stack)
+        : call("getDropRule", 5, context(slotContext), source, lootingLevel, recentlyHit, stack);
 
     if (result instanceof Enum<?> value) {
 
@@ -218,8 +293,36 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
 
   @Override
   public List<net.minecraft.network.chat.Component> getSlotsTooltip(
+      List<net.minecraft.network.chat.Component> tooltips, TooltipContext context,
+      ItemStack stack) {
+    Object result = !overrides("getSlotsTooltip", 3) && overrides("getSlotsTooltip", 2)
+        ? call("getSlotsTooltip", 2, tooltips, stack)
+        : call("getSlotsTooltip", 3, tooltips, context, stack);
+    return result instanceof List<?> list ? castComponents(list) : tooltips;
+  }
+
+  @Override
+  public List<net.minecraft.network.chat.Component> getSlotsTooltip(
       List<net.minecraft.network.chat.Component> tooltips, ItemStack stack) {
     Object result = call("getSlotsTooltip", 2, tooltips, stack);
+    return result instanceof List<?> list ? castComponents(list) : tooltips;
+  }
+
+  @Override
+  public List<net.minecraft.network.chat.Component> getAttributesTooltip(
+      List<net.minecraft.network.chat.Component> tooltips, TooltipContext context,
+      ItemStack stack) {
+    Object result = !overrides("getAttributesTooltip", 3)
+        && overrides("getAttributesTooltip", 2)
+        ? call("getAttributesTooltip", 2, tooltips, stack)
+        : call("getAttributesTooltip", 3, tooltips, context, stack);
+    return result instanceof List<?> list ? castComponents(list) : tooltips;
+  }
+
+  @Override
+  public List<net.minecraft.network.chat.Component> getAttributesTooltip(
+      List<net.minecraft.network.chat.Component> tooltips, ItemStack stack) {
+    Object result = call("getAttributesTooltip", 2, tooltips, stack);
     return result instanceof List<?> list ? castComponents(list) : tooltips;
   }
 

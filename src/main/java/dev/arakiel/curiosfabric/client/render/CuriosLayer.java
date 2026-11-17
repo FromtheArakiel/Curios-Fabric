@@ -1,8 +1,6 @@
 package dev.arakiel.curiosfabric.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nonnull;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -11,7 +9,6 @@ import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.client.CuriosRendererRegistry;
@@ -22,8 +19,6 @@ import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 
 public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> extends
     RenderLayer<T, M> {
-
-  private static final Set<String> REPORTED_RENDER_CALLS = ConcurrentHashMap.newKeySet();
 
   private final RenderLayerParent<T, M> renderLayerParent;
 
@@ -68,7 +63,6 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                       renderer.render(finalStack, slotContext, matrixStack, renderLayerParent,
                           renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
                           ageInTicks, netHeadYaw, headPitch);
-                      reportCall(finalStack, slotContext, SlotSource.CURIOSFABRIC, true);
                     });
               } else {
                 Object[] arguments = {
@@ -76,28 +70,12 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                     light, livingEntity, limbSwing, limbSwingAmount, partialTicks, ageInTicks,
                     netHeadYaw, headPitch};
                 CompatibilityBridges.rendererFor(slotType, finalStack, true)
-                    .ifPresent(bridge -> {
-                      boolean rendered = bridge.render(finalStack, slotContext, arguments);
-                      SlotSource rendererSource =
-                          CompatibilityBridges.rendererSourceFor(slotType, finalStack, true)
-                              .orElse(source);
-                      reportCall(finalStack, slotContext, rendererSource, rendered);
-                    });
+                    .ifPresent(bridge -> bridge.render(finalStack, slotContext, arguments));
               }
             }
           }
         }));
     matrixStack.popPose();
-  }
-
-  private static void reportCall(ItemStack stack, SlotContext context, SlotSource source,
-                                 boolean rendered) {
-    String key = stack.getItem() + "|" + context.identifier();
-    if (REPORTED_RENDER_CALLS.add(key)) {
-      CuriosFabricConstants.LOG.info(
-          "CURIOS_RENDER_DEBUG call item={} slot={} index={} source={} rendered={}",
-          stack.getItem(), context.identifier(), context.index(), source, rendered);
-    }
   }
 
 }

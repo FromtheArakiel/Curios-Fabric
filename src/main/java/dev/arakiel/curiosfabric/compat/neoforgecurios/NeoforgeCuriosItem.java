@@ -1,7 +1,10 @@
 package dev.arakiel.curiosfabric.compat.neoforgecurios;
 
+import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotContext;
+import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
+import java.util.Set;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -13,20 +16,28 @@ import net.minecraft.world.item.ItemStack;
  */
 public class NeoforgeCuriosItem implements ICurioItem {
 
-  private final String slotId;
+  private final Set<String> slotIds;
 
   public NeoforgeCuriosItem(String slotId) {
-    this.slotId = slotId;
+    this(Set.of(slotId));
+  }
+
+  public NeoforgeCuriosItem(Set<String> slotIds) {
+    this.slotIds = Set.copyOf(slotIds);
   }
 
   public String slotId() {
-    return slotId;
+    return slotIds.iterator().next();
   }
 
   @Override
   public boolean canEquip(SlotContext slotContext, ItemStack stack) {
-    return slotId.equals(slotContext.identifier())
-        && NeoforgeCuriosCompat.isNeoforgeCuriosItemFor(slotId, stack);
+    boolean client = slotContext.entity() != null && slotContext.entity().level() != null
+        && slotContext.entity().level().isClientSide();
+    ISlotType slot = CuriosApi.getSlot(slotContext.identifier(), client).orElse(null);
+    String mappingId = slot == null ? slotContext.identifier() : slot.getMappingIdentifier();
+    return slotIds.contains(mappingId)
+        && NeoforgeCuriosCompat.isNeoforgeCuriosItemFor(mappingId, stack);
   }
 
   @Override

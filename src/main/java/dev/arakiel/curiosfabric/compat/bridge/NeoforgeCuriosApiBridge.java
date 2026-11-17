@@ -2,13 +2,22 @@ package dev.arakiel.curiosfabric.compat.bridge;
 
 import com.google.common.collect.Multimap;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Predicate;
+import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.monster.EnderMan;
@@ -48,6 +57,10 @@ public final class NeoforgeCuriosApiBridge {
   private static final Map<Item, Object> FOREIGN_RENDERERS = new java.util.concurrent.ConcurrentHashMap<>();
   private static final java.util.Set<Item> FOREIGN_RENDERERS_MISSING =
       java.util.concurrent.ConcurrentHashMap.newKeySet();
+  private static final Map<Object, ICurioStacksHandler> STACKS_HANDLER_DELEGATES =
+      Collections.synchronizedMap(new WeakHashMap<>());
+  private static volatile Object foreignItemCapability;
+  private static volatile boolean foreignItemCapabilityUnavailable;
 
   private NeoforgeCuriosApiBridge() {
   }
@@ -66,6 +79,21 @@ public final class NeoforgeCuriosApiBridge {
             Map<String, Object> map = new LinkedHashMap<>();
             ours.getCurios().forEach((id, handler) -> map.put(id, stacksHandler(handler)));
             yield map;
+          }
+          case "setCurios" -> {
+            if (args[0] instanceof Map<?, ?> map) {
+              Map<String, ICurioStacksHandler> delegates = new LinkedHashMap<>();
+              map.forEach((id, handler) -> {
+                ICurioStacksHandler delegate = STACKS_HANDLER_DELEGATES.get(handler);
+                if (id instanceof String key && delegate != null) {
+                  delegates.put(key, delegate);
+                }
+              });
+              if (delegates.size() == map.size()) {
+                ours.setCurios(delegates);
+              }
+            }
+            yield null;
           }
           case "getStacksHandler" -> Optional.ofNullable(
               ours.getStacksHandler((String) args[0]).map(NeoforgeCuriosApiBridge::stacksHandler)
@@ -89,18 +117,9 @@ public final class NeoforgeCuriosApiBridge {
             ours.setSlotsActive((String) args[0], (Boolean) args[1]);
             yield null;
           }
-          case "findFirstCurio" -> slotResult(ours.findFirstCurio(argumentFilter(args)));
-          case "findCurios" -> {
-            if (args.length == 1 && args[0] instanceof Predicate) {
-              yield ours.findCurios(predicate(args[0])).stream().map(NeoforgeCuriosApiBridge::slotResult)
-                  .toList();
-            }
-
-            if (args.length >= 1 && args[0] instanceof String[] ids) {
-              yield ours.findCurios(ids).stream().map(NeoforgeCuriosApiBridge::slotResult).toList();
-            }
-            yield new java.util.ArrayList<>();
-          }
+          case "findFirstCurio" -> slotResult(findFirstCurio(ours, args));
+          case "findCurios" -> findCurios(ours, args).stream()
+              .map(NeoforgeCuriosApiBridge::slotResult).toList();
           case "findCurio" -> {
             int index = (Integer) args[1];
             yield args.length > 2 && args[2] instanceof Boolean includeInactive
@@ -137,12 +156,24 @@ public final class NeoforgeCuriosApiBridge {
             yield null;
           }
           case "getModifiers" -> ours.getModifiers();
+          case "addTransientSlotModifier" -> {
+            ours.addTransientSlotModifiers(slotModifier(args));
+            yield null;
+          }
           case "addTransientSlotModifiers" -> {
             ours.addTransientSlotModifiers(modifiers(args[0]));
             yield null;
           }
+          case "addPermanentSlotModifier" -> {
+            ours.addPermanentSlotModifiers(slotModifier(args));
+            yield null;
+          }
           case "addPermanentSlotModifiers" -> {
             ours.addPermanentSlotModifiers(modifiers(args[0]));
+            yield null;
+          }
+          case "removeSlotModifier" -> {
+            ours.removeSlotModifiers(slotModifier(args));
             yield null;
           }
           case "removeSlotModifiers" -> {
@@ -163,15 +194,28 @@ public final class NeoforgeCuriosApiBridge {
             ours.loadInventory((net.minecraft.nbt.ListTag) args[0]);
             yield null;
           }
-          case "getLockedSlots" -> new java.util.HashSet<String>();
-          case "getUpdatingInventories" -> new java.util.HashSet<Object>();
+          case "getLockedSlots" -> ours.getLockedSlots();
+          case "getUpdatingInventories" -> {
+            Set<Object> handlers = new HashSet<>();
+            ours.getUpdatingInventories().forEach(handler -> handlers.add(stacksHandler(handler)));
+            yield handlers;
+          }
+          case "unlockSlotType" -> {
+            ours.growSlotType((String) args[0], (Integer) args[1]);
+            yield null;
+          }
+          case "lockSlotType" -> {
+            ours.shrinkSlotType((String) args[0], 1);
+            yield null;
+          }
+          case "processSlots" -> null;
           case "getFortuneBonus" -> 0;
           default -> ForeignProxy.defaultValue(returnType);
         });
   }
 
   private static Object stacksHandler(ICurioStacksHandler ours) {
-    return ForeignProxy.create(new String[]{API + "type.inventory.ICurioStacksHandler"},
+    Object proxy = ForeignProxy.create(new String[]{API + "type.inventory.ICurioStacksHandler"},
         (name, returnType, parameters, args) -> switch (name) {
           case "getStacks" -> dynamicStackHandler(ours.getStacks());
           case "getCosmeticStacks" -> dynamicStackHandler(ours.getCosmeticStacks());
@@ -225,7 +269,14 @@ public final class NeoforgeCuriosApiBridge {
             ours.applySyncTag((net.minecraft.nbt.CompoundTag) args[0]);
             yield null;
           }
-          case "getSizeShift" -> 0;
+          case "getSizeShift" -> ours.getSizeShift();
+          case "copyModifiers" -> {
+            ICurioStacksHandler delegate = STACKS_HANDLER_DELEGATES.get(args[0]);
+            if (delegate != null) {
+              ours.copyModifiers(delegate);
+            }
+            yield null;
+          }
           case "grow" -> {
             ours.grow((Integer) args[0]);
             yield null;
@@ -236,6 +287,10 @@ public final class NeoforgeCuriosApiBridge {
           }
           default -> ForeignProxy.defaultValue(returnType);
         });
+    if (proxy != null) {
+      STACKS_HANDLER_DELEGATES.put(proxy, ours);
+    }
+    return proxy;
   }
 
   private static Object dynamicStackHandler(IDynamicStackHandler ours) {
@@ -299,6 +354,10 @@ public final class NeoforgeCuriosApiBridge {
 
   /** The curio behavior of the stack as a Neoforge {@code ICurio}, or {@code null}. */
   public static Object curio(ItemStack stack) {
+    Object foreign = foreignItemCapability(stack);
+    if (foreign != null) {
+      return foreign;
+    }
     ICurio ours = CuriosApi.getCurio(stack).orElse(null);
 
     if (ours == null) {
@@ -313,6 +372,15 @@ public final class NeoforgeCuriosApiBridge {
           }
           case "canEquip" -> ours.canEquip(context(args[0]));
           case "canUnequip" -> ours.canUnequip(context(args[0]));
+          case "getSlotsTooltip" -> args.length > 1
+              ? ours.getSlotsTooltip(components(args[0]), (Item.TooltipContext) args[1])
+              : ours.getSlotsTooltip(components(args[0]));
+          case "getAttributeModifiers" -> args[1] instanceof java.util.UUID uuid
+              ? ours.getAttributeModifiers(context(args[0]), uuid)
+              : ours.getAttributeModifiers(context(args[0]), (ResourceLocation) args[1]);
+          case "getAttributesTooltip" -> args.length > 1
+              ? ours.getAttributesTooltip(components(args[0]), (Item.TooltipContext) args[1])
+              : ours.getAttributesTooltip(components(args[0]));
           case "curioBreak" -> {
             ours.curioBreak(context(args[0]));
             yield null;
@@ -323,9 +391,12 @@ public final class NeoforgeCuriosApiBridge {
             ours.readSyncData(context(args[0]), (net.minecraft.nbt.CompoundTag) args[1]);
             yield null;
           }
-          case "getDropRule" -> dropRule(ours.getDropRule(context(args[0]),
-              (net.minecraft.world.damagesource.DamageSource) args[1], (Integer) args[2],
-              (Boolean) args[3]));
+          case "getDropRule" -> args.length == 3
+              ? dropRule(ours.getDropRule(context(args[0]),
+                  (net.minecraft.world.damagesource.DamageSource) args[1], (Boolean) args[2]))
+              : dropRule(ours.getDropRule(context(args[0]),
+                  (net.minecraft.world.damagesource.DamageSource) args[1], (Integer) args[2],
+                  (Boolean) args[3]));
           case "getFortuneLevel" -> ours.getFortuneLevel(context(args[0]),
               args.length > 1 ? (LootContext) args[1] : null);
           case "getLootingLevel" -> ours.getLootingLevel(context(args[0]),
@@ -334,6 +405,7 @@ public final class NeoforgeCuriosApiBridge {
             ours.onEquipFromUse(context(args[0]));
             yield null;
           }
+          case "getEquipSound" -> soundInfo(ours.getEquipSound(context(args[0])));
           case "canEquipFromUse" -> ours.canEquipFromUse(context(args[0]));
           case "onEquip" -> {
             ours.onEquip(context(args[0]), (ItemStack) args[1]);
@@ -364,10 +436,105 @@ public final class NeoforgeCuriosApiBridge {
           case "getValidators" -> ours.getValidators();
           case "writeNbt" -> ours.writeNbt();
           case "getDropRule" -> dropRule(ours.getDropRule());
+          case "isLocked" -> ours.isLocked();
+          case "getPriority" -> ours.getPriority();
+          case "isVisible" -> ours.isVisible();
           case "compareTo" -> ours.getIdentifier().compareTo(
               String.valueOf(ForeignProxy.read(args[0], "getIdentifier", "")));
           default -> ForeignProxy.defaultValue(returnType);
         });
+  }
+
+  private static Optional<SlotResult> findFirstCurio(ICuriosItemHandler ours, Object[] args) {
+    Predicate<ItemStack> filter = argumentFilter(args);
+    if (args.length >= 3 && args[1] instanceof Boolean includeInactive
+        && args[2] instanceof String cacheKey) {
+      return ours.findFirstCurio(filter, includeInactive, cacheKey);
+    }
+    if (args.length >= 2 && args[1] instanceof String cacheKey) {
+      return ours.findFirstCurio(filter, cacheKey);
+    }
+    return ours.findFirstCurio(filter);
+  }
+
+  private static List<SlotResult> findCurios(ICuriosItemHandler ours, Object[] args) {
+    if (args.length == 1) {
+      if (args[0] instanceof Item item) {
+        return ours.findCurios(item);
+      }
+      if (args[0] instanceof Predicate<?> predicate) {
+        return ours.findCurios(predicate(predicate));
+      }
+      if (args[0] instanceof String[] ids) {
+        return ours.findCurios(ids);
+      }
+    }
+    if (args.length >= 2 && args[0] instanceof Boolean && args[1] instanceof String[] ids) {
+      return ours.findCurios(ids);
+    }
+    if (args.length >= 3 && args[0] instanceof Predicate<?> predicate
+        && args[1] instanceof Boolean includeInactive && args[2] instanceof String cacheKey) {
+      return ours.findCurios(predicate(predicate), includeInactive, cacheKey);
+    }
+    return List.of();
+  }
+
+  private static Multimap<String, AttributeModifier> slotModifier(Object[] args) {
+    Multimap<String, AttributeModifier> result = com.google.common.collect.HashMultimap.create();
+    if (args.length >= 4 && args[0] instanceof String slot
+        && args[1] instanceof ResourceLocation id && args[2] instanceof Double amount) {
+      result.put(slot, new AttributeModifier(id, amount, operation(args[3])));
+    }
+    return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static List<Component> components(Object value) {
+    return value instanceof List<?> list ? (List<Component>) list : new java.util.ArrayList<>();
+  }
+
+  private static Object soundInfo(ICurio.SoundInfo ours) {
+    try {
+      Class<?> type = dev.arakiel.curiosfabric.compat.CompatTargets
+          .loadClass(API + "type.capability.ICurio$SoundInfo");
+      return type == null ? null
+          : type.getConstructor(SoundEvent.class, float.class, float.class)
+              .newInstance(ours.soundEvent(), ours.volume(), ours.pitch());
+    } catch (Throwable throwable) {
+      CuriosFabricConstants.LOG.debug("Failed to build a bridged curio sound", throwable);
+      return null;
+    }
+  }
+
+  private static Object foreignItemCapability(ItemStack stack) {
+    if (stack == null || stack.isEmpty() || foreignItemCapabilityUnavailable) {
+      return null;
+    }
+    try {
+      Object capability = foreignItemCapability;
+      if (capability == null) {
+        Class<?> holder = dev.arakiel.curiosfabric.compat.CompatTargets
+            .loadClass(API + "CuriosCapability");
+        if (holder == null) {
+          foreignItemCapabilityUnavailable = true;
+          return null;
+        }
+        Field item = holder.getField("ITEM");
+        capability = item.get(null);
+        foreignItemCapability = capability;
+      }
+      for (Method method : stack.getClass().getMethods()) {
+        Class<?>[] parameters = method.getParameterTypes();
+        if (method.getName().equals("getCapability") && parameters.length == 2
+            && parameters[0].isInstance(capability)) {
+          return method.invoke(stack, capability, null);
+        }
+      }
+    } catch (Throwable throwable) {
+      CuriosFabricConstants.LOG.debug("Could not read the Neoforge curio item capability",
+          throwable);
+    }
+    return null;
   }
 
   private static Object slotResult(Optional<SlotResult> result) {
@@ -405,16 +572,31 @@ public final class NeoforgeCuriosApiBridge {
       }
       Object[] call = args.clone();
       call[1] = foreignContext((SlotContext) args[1]);
+      if (call[1] == null) {
+        return false;
+      }
 
-      for (java.lang.reflect.Method method : renderer.getClass().getMethods()) {
-
+      Throwable lastFailure = null;
+      for (Method method : renderer.getClass().getMethods()) {
         if (method.getName().equals("render") && method.getParameterCount() == args.length) {
-          method.invoke(renderer, call);
-          return true;
+          try {
+            method.setAccessible(true);
+            method.invoke(renderer, call);
+            return true;
+          } catch (InvocationTargetException exception) {
+            lastFailure = exception.getCause() == null ? exception : exception.getCause();
+          } catch (Throwable throwable) {
+            lastFailure = throwable;
+          }
         }
       }
+      if (lastFailure != null) {
+        CuriosFabricConstants.LOG.debug("Failed to invoke a bridged Neoforge curio renderer",
+            lastFailure);
+      }
     } catch (Throwable throwable) {
-      CuriosFabricConstants.LOG.debug("Failed to invoke a bridged Neoforge curio renderer", throwable);
+      CuriosFabricConstants.LOG.debug("Failed to invoke a bridged Neoforge curio renderer",
+          throwable);
     }
     return false;
   }
