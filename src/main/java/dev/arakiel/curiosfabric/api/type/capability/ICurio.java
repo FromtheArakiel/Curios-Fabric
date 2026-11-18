@@ -40,6 +40,11 @@ public interface ICurio {
    */
   ItemStack getStack();
 
+  /** Maximum stack count accepted while equipped. */
+  default int getMaxStackSize() {
+    return this.getStack().getMaxStackSize();
+  }
+
   /**
    * Called every tick on both client and server while the ItemStack is equipped.
    *

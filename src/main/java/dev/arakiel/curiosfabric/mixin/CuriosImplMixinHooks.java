@@ -96,7 +96,8 @@ public class CuriosImplMixinHooks {
       SlotResult slotResult = new SlotResult(slotContext, stack);
       return CuriosApi.testCurioPredicates(slotType.getValidators(), slotResult);
     }, allSlots);
-    addCompatSlots(stack, slots, allSlots, livingEntity.level().isClientSide());
+    addCompatSlots(
+        stack, slots, allSlots, livingEntity, livingEntity.level().isClientSide());
     return slots;
   }
 
@@ -109,8 +110,14 @@ public class CuriosImplMixinHooks {
    */
   private static void addCompatSlots(ItemStack stack, Map<String, ISlotType> result,
                                      Map<String, ISlotType> allSlots, boolean client) {
+    addCompatSlots(stack, result, allSlots, null, client);
+  }
 
-    for (String slotId : CompatibilityRuntime.slotsForItem(stack, client)) {
+  private static void addCompatSlots(ItemStack stack, Map<String, ISlotType> result,
+                                     Map<String, ISlotType> allSlots,
+                                     LivingEntity entity, boolean client) {
+
+    for (String slotId : CompatibilityRuntime.slotsForItem(stack, entity, client)) {
       for (Map.Entry<String, ISlotType> entry : allSlots.entrySet()) {
         if (entry.getValue().getMappingIdentifier().equals(slotId)) {
           result.putIfAbsent(entry.getKey(), entry.getValue());

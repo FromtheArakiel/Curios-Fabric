@@ -33,7 +33,8 @@
     "curiosfabric.core.mixins.json",
     "curiosfabric.compat.mixins.json",
     "curiosfabric.trinkets.mixins.json",
-    "curiosfabric.neoforgecurios.mixins.json"
+    "curiosfabric.neoforgecurios.mixins.json",
+    "curiosfabric.accessories.mixins.json"
   ],
   "accessWidener": "curiosfabric.accesswidener",
   "depends": {
@@ -49,6 +50,7 @@
     ]
   },
   "suggests": {
+    "accessories": ">=1.1.0-beta.54",
     "jei": "*",
     "modmenu": "*"
   }

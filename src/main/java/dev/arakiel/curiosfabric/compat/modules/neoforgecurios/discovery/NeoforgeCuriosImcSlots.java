@@ -2,8 +2,8 @@ package dev.arakiel.curiosfabric.compat.modules.neoforgecurios.discovery;
 
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.SlotSource;
-import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.common.slottype.SlotType;
+import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.duck.NeoforgeCuriosLegacySlotDuck;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,28 +33,24 @@ public final class NeoforgeCuriosImcSlots {
       for (java.util.Map.Entry<?, ?> entry : builders.entrySet()) {
         String upstreamId = String.valueOf(entry.getKey());
         Object slot = entry.getValue().getClass().getMethod("build").invoke(entry.getValue());
+        if (!(slot instanceof NeoforgeCuriosLegacySlotDuck legacy)) {
+          continue;
+        }
         String nativeId = NeoforgeCuriosNativeMappings.nativeId(upstreamId);
         String instanceId = nativeId != null ? nativeId : "neoforgecurios_" + upstreamId;
         String mappingId = nativeId != null ? nativeId : upstreamId;
         SlotType.Builder builder = new SlotType.Builder(instanceId)
             .source(SlotSource.NEOFORGE_CURIOS)
             .mappingIdentifier(mappingId)
-            .order(readInt(slot, "getOrder"), true)
-            .size(readInt(slot, "getSize"), "SET", true)
-            .useNativeGui(readBoolean(slot, "useNativeGui"), true)
-            .hasCosmetic(readBoolean(slot, "hasCosmetic"), true)
-            .renderToggle(readBoolean(slot, "canToggleRendering"), true);
-        Object icon = slot.getClass().getMethod("getIcon").invoke(slot);
-        if (icon instanceof ResourceLocation location) {
-          builder.icon(location);
-        }
-        Object dropRule = slot.getClass().getMethod("getDropRule").invoke(slot);
-        if (dropRule instanceof Enum<?> value) {
-          try {
-            builder.dropRule(ICurio.DropRule.valueOf(value.name()));
-          } catch (IllegalArgumentException ignored) {
-            // Unknown upstream drop rules intentionally use the CuriosFabric default.
-          }
+            .order(legacy.curiosfabric$order(), true)
+            .size(legacy.curiosfabric$size(), "SET", true)
+            .useNativeGui(legacy.curiosfabric$useNativeGui(), true)
+            .hasCosmetic(legacy.curiosfabric$hasCosmetic(), true)
+            .renderToggle(legacy.curiosfabric$renderToggle(), true)
+            .dropRule(legacy.curiosfabric$dropRule());
+        builder.icon(legacy.curiosfabric$icon());
+        for (ResourceLocation validator : legacy.curiosfabric$validators()) {
+          builder.validator(validator);
         }
         result.add(builder.build());
       }
@@ -64,12 +60,4 @@ public final class NeoforgeCuriosImcSlots {
     }
   }
 
-  private static int readInt(Object target, String method) throws ReflectiveOperationException {
-    return (Integer) target.getClass().getMethod(method).invoke(target);
-  }
-
-  private static boolean readBoolean(Object target, String method)
-      throws ReflectiveOperationException {
-    return (Boolean) target.getClass().getMethod(method).invoke(target);
-  }
 }

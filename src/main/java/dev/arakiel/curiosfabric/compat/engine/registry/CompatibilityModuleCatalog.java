@@ -1,6 +1,7 @@
 package dev.arakiel.curiosfabric.compat.engine.registry;
 
 import dev.arakiel.curiosfabric.compat.core.contract.CompatibilityBridge;
+import dev.arakiel.curiosfabric.compat.modules.accessories.AccessoriesBridge;
 import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.NeoforgeCuriosBridge;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.TrinketsBridge;
 import java.util.List;
@@ -14,6 +15,7 @@ public final class CompatibilityModuleCatalog {
   public static List<CompatibilityBridge> builtInBridges() {
     return List.of(
         new TrinketsBridge(),
-        new NeoforgeCuriosBridge());
+        new NeoforgeCuriosBridge(),
+        new AccessoriesBridge());
   }
 }

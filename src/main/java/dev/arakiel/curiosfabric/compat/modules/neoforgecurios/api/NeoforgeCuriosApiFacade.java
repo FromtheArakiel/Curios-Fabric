@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.Tag;
@@ -38,6 +37,7 @@ import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 import dev.arakiel.curiosfabric.compat.contribution.api.ForeignApiFacade;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeContext;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeInvalidationReason;
+import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.duck.NeoforgeCuriosSlotContextDuck;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 
@@ -66,8 +66,6 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
       java.util.concurrent.ConcurrentHashMap.newKeySet();
   private static final Map<Object, ICurioStacksHandler> STACKS_HANDLER_DELEGATES =
       Collections.synchronizedMap(new WeakHashMap<>());
-  private static final Set<String> RENDER_INVOCATIONS_REPORTED =
-      ConcurrentHashMap.newKeySet();
   private static volatile Object foreignItemCapability;
   private static volatile boolean foreignItemCapabilityUnavailable;
 
@@ -83,7 +81,6 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
     FOREIGN_RENDERERS.clear();
     FOREIGN_RENDERERS_MISSING.clear();
     STACKS_HANDLER_DELEGATES.clear();
-    RENDER_INVOCATIONS_REPORTED.clear();
   }
 
   /** The inventory of the entity as a Neoforge {@code ICuriosItemHandler}, or {@code null}. */
@@ -593,7 +590,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
       }
       if (!(args[1] instanceof SlotContext oursContext)) {
         CuriosFabricConstants.LOG.warn(
-            "CURIOS_RENDER_DEBUG neoforge renderer received wrong context type item={} type={}",
+            "NeoForge Curios renderer received wrong context type item={} type={}",
             BuiltInRegistries.ITEM.getKey(item),
             args[1] == null ? "null" : args[1].getClass().getName());
         return false;
@@ -602,20 +599,10 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
       call[1] = foreignContext(oursContext);
       if (call[1] == null) {
         CuriosFabricConstants.LOG.warn(
-            "CURIOS_RENDER_DEBUG neoforge context conversion failed item={} slot={} index={}",
+            "NeoForge Curios context conversion failed item={} slot={} index={}",
             BuiltInRegistries.ITEM.getKey(((ItemStack) args[0]).getItem()),
             oursContext.identifier(), oursContext.index());
         return false;
-      }
-      String reportKey = BuiltInRegistries.ITEM.getKey(item)
-          + "|" + renderer.getClass().getName();
-      if (RENDER_INVOCATIONS_REPORTED.add(reportKey)) {
-        CuriosFabricConstants.LOG.info(
-            "CURIOS_RENDER_DEBUG neoforge invoke item={} renderer={} slot={} index={} "
-                + "curioPresent={}",
-            BuiltInRegistries.ITEM.getKey(item), renderer.getClass().getName(),
-            oursContext.identifier(), oursContext.index(),
-            curio((ItemStack) args[0]) != null);
       }
 
       Throwable lastFailure = null;
@@ -634,12 +621,11 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
       }
       if (lastFailure != null) {
         CuriosFabricConstants.LOG.warn(
-            "CURIOS_RENDER_DEBUG neoforge renderer failed item={} renderer={}",
+            "NeoForge Curios renderer failed item={} renderer={}",
             BuiltInRegistries.ITEM.getKey(item), renderer.getClass().getName(), lastFailure);
       }
     } catch (Throwable throwable) {
-      CuriosFabricConstants.LOG.warn(
-          "CURIOS_RENDER_DEBUG neoforge renderer invocation failed", throwable);
+      CuriosFabricConstants.LOG.warn("NeoForge Curios renderer invocation failed", throwable);
     }
     return false;
   }
@@ -681,25 +667,8 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
         return renderer;
       }
 
-      java.lang.reflect.Field suppliersField = registry.getDeclaredField("RENDERER_REGISTRY");
-      suppliersField.setAccessible(true);
-
-      if (!(suppliersField.get(null) instanceof Map<?, ?> suppliers)) {
-        FOREIGN_RENDERERS_MISSING.add(item);
-        return null;
-      }
-      Object supplier = suppliers.get(item);
-
-      if (!(supplier instanceof java.util.function.Supplier<?> rendererSupplier)) {
-        FOREIGN_RENDERERS_MISSING.add(item);
-        return null;
-      }
-      Object renderer = rendererSupplier.get();
-
-      if (renderer != null) {
-        FOREIGN_RENDERERS.put(item, renderer);
-      }
-      return renderer;
+      FOREIGN_RENDERERS_MISSING.add(item);
+      return null;
     } catch (Throwable throwable) {
       FOREIGN_RENDERERS_MISSING.add(item);
       return null;
@@ -770,12 +739,13 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
     if (foreign instanceof SlotContext ours) {
       return ours;
     }
+    NeoforgeCuriosSlotContextDuck context = (NeoforgeCuriosSlotContextDuck) (Object) foreign;
     return new SlotContext(
-        String.valueOf(ForeignProxy.read(foreign, "identifier", "")),
-        (LivingEntity) ForeignProxy.read(foreign, "entity", null),
-        (Integer) ForeignProxy.read(foreign, "index", 0),
-        (Boolean) ForeignProxy.read(foreign, "cosmetic", false),
-        (Boolean) ForeignProxy.read(foreign, "visible", true));
+        context.curiosfabric$identifier(),
+        context.curiosfabric$entity(),
+        context.curiosfabric$index(),
+        context.curiosfabric$cosmetic(),
+        context.curiosfabric$visible());
   }
 
   @SuppressWarnings("unchecked")

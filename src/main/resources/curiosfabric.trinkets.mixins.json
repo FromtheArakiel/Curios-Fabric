@@ -5,7 +5,10 @@
   "plugin": "dev.arakiel.curiosfabric.compat.mixin.CompatMixinPlugin",
   "mixins": [
     "TrinketCreativeSlotMixin",
+    "TrinketApiSlotGroupAccessor",
+    "TrinketApiSlotTypeAccessor",
     "TrinketComponentMixin",
+    "TrinketEntitySlotLoaderAccessor",
     "TrinketInventorySlotMixin",
     "TrinketScreenManagerMixin",
     "TrinketGroupDataAccessor",

@@ -53,6 +53,14 @@ public class DynamicStackHandler extends ItemStackHandler implements IDynamicSta
   }
 
   @Override
+  protected int getStackLimit(int slot, @Nonnull ItemStack stack) {
+    int behaviorLimit = CuriosApi.getCurio(stack)
+        .map(curio -> curio.getMaxStackSize())
+        .orElse(stack.getMaxStackSize());
+    return Math.min(super.getStackLimit(slot, stack), behaviorLimit);
+  }
+
+  @Override
   public @Nonnull ItemStack extractItem(int slot, int amount, boolean simulate) {
     ItemStack existing = this.stacks.get(slot);
     SlotContext ctx = ctxBuilder.apply(slot);

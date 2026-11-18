@@ -7,6 +7,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.commands.CommandBuildContext;
@@ -24,6 +25,7 @@ import dev.arakiel.curiosfabric.api.CuriosTags;
 import dev.arakiel.curiosfabric.api.type.inventory.ICurioStacksHandler;
 import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
+import dev.arakiel.curiosfabric.common.slottype.SlotOrdering;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.server.sync.SPacketSyncCurios;
 
@@ -53,6 +55,13 @@ public class CuriosFabricCommand {
 //    }));
 
     curiosFabricCommand.then(Commands.literal("list").executes(context -> {
+      List<String> ordered = SlotOrdering.order(CuriosSlotManager.SERVER.getSlots().values()).stream()
+          .map(slot -> slot.getIdentifier() + "(" + slot.getSource().id() + ")")
+          .toList();
+      context.getSource().sendSuccess(
+          () -> Component.literal("order: " + String.join(" -> ", ordered)),
+          false);
+
       Map<String, Set<String>> map = new HashMap<>();
 
       for (Map.Entry<String, Set<String>> entry : CuriosSlotManager.SERVER.getModsFromSlots()

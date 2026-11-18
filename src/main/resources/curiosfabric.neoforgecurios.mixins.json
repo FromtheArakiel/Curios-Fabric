@@ -6,8 +6,11 @@
   "mixins": [
     "NeoforgeCuriosApiHooksMixin",
     "NeoforgeCuriosClientMixin",
+    "NeoforgeCuriosLegacySlotMixin",
     "NeoforgeCuriosModMixin",
     "NeoforgeCuriosRegistryMixin",
+    "NeoforgeCuriosRendererRegistryMixin",
+    "NeoforgeCuriosSlotContextMixin",
     "NeoforgeEffectApplicableMixin"
   ],
   "minVersion": "0.8"

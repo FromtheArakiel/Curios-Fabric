@@ -48,7 +48,7 @@ public class NeoforgeCuriosApiHooksMixin {
   @Inject(method = "getSlots(Z)Ljava/util/Map;", at = @At("HEAD"), cancellable = true)
   private static void curiosfabric$getSlots(boolean isClient,
                                             CallbackInfoReturnable<Map<?, ?>> cir) {
-    cir.setReturnValue(slotTypes(CuriosApi.getSlots(isClient)));
+    cir.setReturnValue(curiosfabric$slotTypes(CuriosApi.getSlots(isClient)));
   }
 
   @Inject(
@@ -56,7 +56,7 @@ public class NeoforgeCuriosApiHooksMixin {
       at = @At("HEAD"), cancellable = true)
   private static void curiosfabric$getEntitySlots(EntityType<?> type, boolean isClient,
                                                   CallbackInfoReturnable<Map<?, ?>> cir) {
-    cir.setReturnValue(slotTypes(CuriosApi.getEntitySlots(type, isClient)));
+    cir.setReturnValue(curiosfabric$slotTypes(CuriosApi.getEntitySlots(type, isClient)));
   }
 
   @Inject(
@@ -64,7 +64,7 @@ public class NeoforgeCuriosApiHooksMixin {
       at = @At("HEAD"), cancellable = true)
   private static void curiosfabric$getItemStackSlotsClient(ItemStack stack, boolean isClient,
                                                            CallbackInfoReturnable<Map<?, ?>> cir) {
-    cir.setReturnValue(slotTypes(CuriosApi.getItemStackSlots(stack, isClient)));
+    cir.setReturnValue(curiosfabric$slotTypes(CuriosApi.getItemStackSlots(stack, isClient)));
   }
 
   @Inject(
@@ -73,10 +73,10 @@ public class NeoforgeCuriosApiHooksMixin {
   private static void curiosfabric$getItemStackSlotsEntity(ItemStack stack,
                                                            LivingEntity livingEntity,
                                                            CallbackInfoReturnable<Map<?, ?>> cir) {
-    cir.setReturnValue(slotTypes(CuriosApi.getItemStackSlots(stack, livingEntity)));
+    cir.setReturnValue(curiosfabric$slotTypes(CuriosApi.getItemStackSlots(stack, livingEntity)));
   }
 
-  private static Map<String, Object> slotTypes(Map<String, ISlotType> ours) {
+  private static Map<String, Object> curiosfabric$slotTypes(Map<String, ISlotType> ours) {
     Map<String, Object> bridged = new LinkedHashMap<>();
     ours.forEach((id, slotType) -> bridged.put(
         slotType.getMappingIdentifier(), NeoforgeCuriosApiFacade.slotType(slotType)));

@@ -39,11 +39,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagLoader;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
 /** Coordinates all bridge contributions without owning bridge-specific implementation. */
@@ -52,7 +51,6 @@ public final class CompatibilityCoordinator {
   private final CompatibilityBridgeRegistry registry;
   private final BridgeStateStore stateStore = new BridgeStateStore();
   private final BridgeHealthRegistry health = new BridgeHealthRegistry();
-  private final Set<String> reportedRenderStates = ConcurrentHashMap.newKeySet();
 
   public CompatibilityCoordinator(CompatibilityBridgeRegistry registry) {
     this.registry = registry;
@@ -101,7 +99,6 @@ public final class CompatibilityCoordinator {
       recordContributionHealth(bridge, context, contribution);
       logDiagnostics(contribution);
     }
-    logRefreshSummary(context);
     publishSlotsAndEntities(context);
   }
 
@@ -131,7 +128,6 @@ public final class CompatibilityCoordinator {
       recordContributionHealth(bridge, context, contribution);
       logDiagnostics(contribution);
     }
-    logRefreshSummary(context);
     publishSlotsAndEntities(context);
   }
 
@@ -200,13 +196,18 @@ public final class CompatibilityCoordinator {
   }
 
   public Set<String> slotsForItem(ItemStack stack, boolean client) {
+    return slotsForItem(stack, null, client);
+  }
+
+  public Set<String> slotsForItem(
+      ItemStack stack, LivingEntity entity, boolean client) {
     Set<String> result = new LinkedHashSet<>();
     BridgeContext context = currentContext(
         client ? BridgeSide.CLIENT : BridgeSide.SERVER,
         BridgePhase.RUNTIME, BridgeRefreshReason.INIT, false);
     for (CompatibilityBridge bridge : registry.active(context)) {
       try {
-        result.addAll(bridge.services().itemAssignments().slotsFor(stack, client));
+        result.addAll(bridge.services().itemAssignments().slotsFor(stack, entity, client));
       } catch (Throwable throwable) {
         CuriosFabricConstants.LOG.warn(
             "Compatibility bridge {} failed item slot assignment",
@@ -217,12 +218,17 @@ public final class CompatibilityCoordinator {
   }
 
   public boolean matchesItemSlot(String slotId, ItemStack stack, boolean client) {
+    return matchesItemSlot(slotId, stack, null, client);
+  }
+
+  public boolean matchesItemSlot(
+      String slotId, ItemStack stack, LivingEntity entity, boolean client) {
     BridgeContext context = currentContext(
         client ? BridgeSide.CLIENT : BridgeSide.SERVER,
         BridgePhase.RUNTIME, BridgeRefreshReason.INIT, false);
     for (CompatibilityBridge bridge : registry.active(context)) {
       try {
-        if (bridge.services().itemAssignments().matches(slotId, stack, client)) {
+        if (bridge.services().itemAssignments().matches(slotId, stack, entity, client)) {
           return true;
         }
       } catch (Throwable throwable) {
@@ -258,25 +264,7 @@ public final class CompatibilityCoordinator {
       CuriosFabricConstants.LOG.warn("Compatibility renderer {}: {}",
           decision.state(), decision.detail());
     }
-    boolean rendered = RendererArbiter.render(decision, query, active);
-    String reportKey = BuiltInRegistries.ITEM.getKey(query.stack().getItem())
-        + "|" + query.slotSource().id()
-        + "|" + query.slotContext().identifier()
-        + "|" + query.slotContext().index()
-        + "|" + decision.state()
-        + "|" + decision.source().map(SlotSource::id).orElse("")
-        + "|" + decision.detail()
-        + "|" + rendered;
-    if (reportedRenderStates.add(reportKey)) {
-      CuriosFabricConstants.LOG.info(
-          "CURIOS_RENDER_DEBUG decision item={} slot={} index={} slotSource={} "
-              + "decision={} owner={} rendered={} detail={}",
-          BuiltInRegistries.ITEM.getKey(query.stack().getItem()),
-          query.slotContext().identifier(), query.slotContext().index(),
-          query.slotSource().id(), decision.state(),
-          decision.source().map(SlotSource::id).orElse("none"), rendered, decision.detail());
-    }
-    return rendered;
+    return RendererArbiter.render(decision, query, active);
   }
 
   public void mirrorTags(
@@ -328,7 +316,6 @@ public final class CompatibilityCoordinator {
     }
     stateStore.invalidate(BridgeSide.CLIENT);
     stateStore.invalidate(BridgeSide.SERVER);
-    reportedRenderStates.clear();
   }
 
   public void invalidateSide(BridgeSide side, BridgeInvalidationReason reason) {
@@ -342,7 +329,6 @@ public final class CompatibilityCoordinator {
       }
     }
     stateStore.invalidate(side);
-    reportedRenderStates.clear();
   }
 
   public void healthSnapshot() {
@@ -503,21 +489,6 @@ public final class CompatibilityCoordinator {
             diagnostic.bridgeId(), diagnostic.side(), diagnostic.message());
       }
     }
-  }
-
-  private void logRefreshSummary(BridgeContext context) {
-    List<String> states = new ArrayList<>();
-    for (CompatibilityBridge bridge : registry.all()) {
-      BridgeAvailability availability = safeAvailability(bridge, context);
-      String contribution = stateStore.contribution(bridge.descriptor().id(), context.side())
-          .map(value -> value.status().name())
-          .orElse("NOT_RUN");
-      states.add(bridge.descriptor().id() + ":" + availability.state() + "/" + contribution);
-    }
-    CuriosFabricConstants.LOG.info(
-        "CURIOS_COMPAT_DEBUG refresh side={} reason={} generation={} authoritative={} bridges={}",
-        context.side(), context.reason(), context.generation().value(),
-        context.authoritative(), states);
   }
 
   private void recordContributionHealth(

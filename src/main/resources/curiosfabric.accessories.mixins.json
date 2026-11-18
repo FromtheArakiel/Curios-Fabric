@@ -1,0 +1,21 @@
+{
+  "required": false,
+  "package": "dev.arakiel.curiosfabric.compat.modules.accessories.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "dev.arakiel.curiosfabric.compat.mixin.CompatMixinPlugin",
+  "mixins": [
+    "AccessoriesCapabilityMixin",
+    "AccessoriesHolderContainmentMixin",
+    "AccessoriesInventorySyncMixin",
+    "AccessoriesLivingEntityCapabilityMixin",
+    "AccessoriesMenuGuardMixin",
+    "AccessoriesRuntimeGuardMixin"
+  ],
+  "client": [
+    "AccessoriesClientGuiMixin",
+    "AccessoriesInventorySyncClientMixin",
+    "AccessoriesRenderLayerMixin",
+    "AccessoriesSyncDataMixin"
+  ],
+  "minVersion": "0.8"
+}

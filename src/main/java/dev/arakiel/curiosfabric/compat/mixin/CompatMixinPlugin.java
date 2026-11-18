@@ -17,6 +17,8 @@ public class CompatMixinPlugin implements IMixinConfigPlugin {
       "dev.arakiel.curiosfabric.compat.modules.neoforgecurios.mixin.";
   private static final String TRINKETS_PACKAGE =
       "dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.";
+  private static final String ACCESSORIES_PACKAGE =
+      "dev.arakiel.curiosfabric.compat.modules.accessories.mixin.";
   private static final String CLIENT_PACKAGE =
       "dev.arakiel.curiosfabric.compat.mixin.client.";
   private static final String NEOFORGE_EFFECT_MIXIN =
@@ -45,6 +47,10 @@ public class CompatMixinPlugin implements IMixinConfigPlugin {
 
     if (mixinClassName.startsWith(TRINKETS_PACKAGE)) {
       return apply(CompatTargets.isTrinketsLoaded(), mixinClassName, targetClassName);
+    }
+
+    if (mixinClassName.startsWith(ACCESSORIES_PACKAGE)) {
+      return apply(CompatTargets.isAccessoriesLoaded(), mixinClassName, targetClassName);
     }
 
     // The screen gate only matters when another accessory UI exists at all.

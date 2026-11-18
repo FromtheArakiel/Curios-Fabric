@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagLoader;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
 /** Stable facade used by the CuriosFabric runtime and compatibility mixins. */
@@ -77,8 +78,18 @@ public final class CompatibilityRuntime {
     return COORDINATOR.slotsForItem(stack, client);
   }
 
+  public static Set<String> slotsForItem(
+      ItemStack stack, LivingEntity entity, boolean client) {
+    return COORDINATOR.slotsForItem(stack, entity, client);
+  }
+
   public static boolean matchesItemSlot(String slotId, ItemStack stack, boolean client) {
     return COORDINATOR.matchesItemSlot(slotId, stack, client);
+  }
+
+  public static boolean matchesItemSlot(
+      String slotId, ItemStack stack, LivingEntity entity, boolean client) {
+    return COORDINATOR.matchesItemSlot(slotId, stack, entity, client);
   }
 
   public static Optional<ICurioItem> resolveItemBehavior(ItemStack stack) {

@@ -34,6 +34,11 @@ public class ItemizedCurioCapability implements ICurio {
   }
 
   @Override
+  public int getMaxStackSize() {
+    return this.curioItem.getMaxStackSize(this.stack);
+  }
+
+  @Override
   public void curioTick(SlotContext slotContext) {
     this.curioItem.curioTick(slotContext, this.getStack());
   }

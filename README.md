@@ -2,7 +2,8 @@
 
 Curios Fabric is a Fabric implementation of the Curios accessory API for Minecraft 1.21.1. It
 provides a data-driven slot system, an inventory API, item lifecycle hooks, attribute modifiers,
-events, client rendering integration, and compatibility bridges for NeoForge Curios and Trinkets.
+events, client rendering integration, and compatibility bridges for NeoForge Curios, Trinkets,
+and Accessories.
 
 The public API lives under:
 
@@ -23,7 +24,7 @@ identity, command, data namespace, package root, and item tags all use `curiosfa
 | Fabric API | Current 1.21.1 build |
 | Gemini | 1.0.5 or newer |
 
-Optional integrations include JEI, Mod Menu, Kilt, NeoForge Curios, and Trinkets.
+Optional integrations include JEI, Mod Menu, Kilt, NeoForge Curios, Trinkets, and Accessories.
 
 ## Quick Start
 
@@ -147,8 +148,9 @@ max(0, round((neoForgeOrder - 20) / 20))
 
 - Equal anchor positions are sorted by identifier, then later anchors move forward.
 - The fill queue starts with Curios Fabric defaults, followed by other Curios Fabric definitions,
-  NeoForge Curios definitions, and finally Trinkets definitions.
-- NeoForge or Trinkets definitions already mapped to a Curios Fabric default are ignored.
+  NeoForge Curios definitions, Trinkets definitions, and finally Accessories definitions.
+- NeoForge Curios, Trinkets, or Accessories definitions already mapped to a Curios Fabric default
+  are ignored.
 - After filling anchors and gaps, slot types are deduplicated by `mappingIdentifier`.
 - `size` is expanded only after the final type-order table is known.
 
@@ -443,6 +445,33 @@ head/hat     -> head
 
 Third-party Trinkets paths are exposed as Curios slot types. Trinkets group order and slot order are
 currently not inherited; this is a low-priority compatibility TODO.
+
+### Accessories
+
+Curios Fabric reads Accessories' final Fabric loader state rather than registering its JSON files
+as a second data source:
+
+```text
+data/<namespace>/accessories/slot
+data/<namespace>/accessories/group
+data/<namespace>/accessories/entity
+```
+
+Accessories body-part groups and `order` values are intentionally ignored. Like Trinkets, every
+unmapped slot is appended to the normal fill queue, after Trinkets. Built-in slots are mapped to
+Curios Fabric defaults:
+
+```text
+hat/face -> head
+cape/back -> back
+hand -> hands
+wrist -> bracelet
+```
+
+Third-party Accessories slots are discovered dynamically and retain their own source, icon,
+language key, and entity bindings. Accessories' inventory is exposed as a live view over the
+Curios Fabric inventory, while its own GUI, entity tick, drop, equip and render layers are
+disabled to keep Curios Fabric as the single accessory runtime.
 
 ## Commands
 

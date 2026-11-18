@@ -11,8 +11,10 @@ import dev.arakiel.curiosfabric.compat.modules.trinkets.discovery.RawTrinketSlot
 import dev.arakiel.curiosfabric.compat.modules.trinkets.discovery.TrinketsNativeMappings;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.item.TrinketCurio;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.item.TrinketItemAdapter;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.TrinketApiSlotGroupAccessor;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.TrinketApiSlotTypeAccessor;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.TrinketEntitySlotLoaderAccessor;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Collection;
 import java.util.HashMap;
@@ -22,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -331,48 +334,54 @@ public final class TrinketsCompat {
     try {
       String loaderName = client ? "CLIENT" : "SERVER";
       Object loader = loaderClass.getField(loaderName).get(null);
-      Method getEntitySlots = loaderClass.getMethod("getEntitySlots", EntityType.class);
+      if (!(loader instanceof TrinketEntitySlotLoaderAccessor accessor)) {
+        return result;
+      }
       CuriosFabricConstants.LOG.debug(
           "Reading Trinkets slots directly from EntitySlotLoader.{}", loaderName);
       for (EntityType<?> entityType : BuiltInRegistries.ENTITY_TYPE) {
-        Object raw = getEntitySlots.invoke(loader, entityType);
-        if (!(raw instanceof Map<?, ?> groups)) {
+        Map<?, ?> groups = accessor.curiosfabric$getEntitySlots(entityType);
+        if (groups == null || groups.isEmpty()) {
           continue;
         }
         Map<String, TrinketSlot> slots = new LinkedHashMap<>();
         for (Map.Entry<?, ?> groupEntry : groups.entrySet()) {
           String groupName = String.valueOf(groupEntry.getKey());
           Object group = groupEntry.getValue();
-          Object rawSlots = group.getClass().getMethod("getSlots").invoke(group);
-          if (!(rawSlots instanceof Map<?, ?> slotMap)) {
+          if (!(group instanceof TrinketApiSlotGroupAccessor groupAccessor)) {
             continue;
           }
+          Map<?, ?> slotMap = groupAccessor.curiosfabric$getSlots();
           for (Map.Entry<?, ?> slotEntry : slotMap.entrySet()) {
             String slotName = String.valueOf(slotEntry.getKey());
             String path = groupName + "/" + slotName;
             Object slot = slotEntry.getValue();
+            if (!(slot instanceof TrinketApiSlotTypeAccessor slotAccessor)) {
+              continue;
+            }
             String nativeId = TrinketsNativeMappings.nativeId(path);
             String mappingId = nativeId != null
                 ? nativeId : TrinketsNativeMappings.appendedMappingId(path);
             String curiosId = nativeId != null ? nativeId : instanceId(groupName, slotName);
             RawTrinketSlots.RawSlot rawMetadata = rawSlotMetadata.get(path);
             int order = rawMetadata != null
-                ? rawMetadata.order() : readInt(slot, "getOrder", 0);
+                ? rawMetadata.order() : slotAccessor.curiosfabric$getOrder();
             int amount = Math.max(1,
-                rawMetadata != null ? rawMetadata.amount() : readInt(slot, "getAmount", 1));
-            Object rawIcon = slot.getClass().getMethod("getIcon").invoke(slot);
+                rawMetadata != null ? rawMetadata.amount() : slotAccessor.curiosfabric$getAmount());
             ResourceLocation icon = rawMetadata != null
                 ? ResourceLocation.tryParse(rawMetadata.icon())
-                : rawIcon instanceof ResourceLocation value ? normalizeIcon(value) : FALLBACK_ICON;
+                : normalizeIcon(slotAccessor.curiosfabric$getIcon());
             if (icon == null) {
               icon = FALLBACK_ICON;
             }
             ICurio.DropRule dropRule =
                 rawMetadata != null
-                    ? readDropRule(rawMetadata.dropRule()) : readDropRule(slot);
+                    ? readDropRule(rawMetadata.dropRule())
+                    : readDropRule(slotAccessor);
             Set<ResourceLocation> validators =
                 rawMetadata != null
-                    ? mapValidators(rawMetadata.validators()) : readValidators(slot);
+                    ? mapValidators(rawMetadata.validators())
+                    : slotAccessor.curiosfabric$getValidatorPredicates();
             slots.put(path, new TrinketSlot(path, curiosId, mappingId, nativeId != null,
                 order, amount, icon, validators, dropRule));
           }
@@ -455,27 +464,6 @@ public final class TrinketsCompat {
     return "trinkets.slot." + path.replace('/', '.');
   }
 
-  private static int readInt(Object target, String method, int fallback) {
-    try {
-      Object value = target.getClass().getMethod(method).invoke(target);
-      return value instanceof Integer integer ? integer : fallback;
-    } catch (Throwable throwable) {
-      return fallback;
-    }
-  }
-
-  private static ICurio.DropRule readDropRule(Object slot) {
-    try {
-      Object value = slot.getClass().getMethod("getDropRule").invoke(slot);
-      if (value instanceof Enum<?> dropRule) {
-        return ICurio.DropRule.valueOf(dropRule.name());
-      }
-    } catch (Throwable ignored) {
-      // Fall through to DEFAULT.
-    }
-    return ICurio.DropRule.DEFAULT;
-  }
-
   private static ICurio.DropRule readDropRule(String dropRule) {
     try {
       return ICurio.DropRule.valueOf(dropRule);
@@ -484,22 +472,10 @@ public final class TrinketsCompat {
     }
   }
 
-  private static Set<ResourceLocation> readValidators(Object slot) {
-    try {
-      Object raw = slot.getClass().getMethod("getValidatorPredicates").invoke(slot);
-      if (raw instanceof Iterable<?> values) {
-        Set<String> paths = new HashSet<>();
-        for (Object value : values) {
-          if (value instanceof ResourceLocation location) {
-            paths.add(location.toString());
-          }
-        }
-        return mapValidators(paths);
-      }
-    } catch (Throwable ignored) {
-      // Fall back to the default tag validator.
-    }
-    return Set.of();
+  private static ICurio.DropRule readDropRule(TrinketApiSlotTypeAccessor slot) {
+    CompoundTag tag = new CompoundTag();
+    slot.curiosfabric$write(tag);
+    return readDropRule(tag.getCompound("SlotData").getString("DropRule"));
   }
 
   private static Set<ResourceLocation> mapValidators(Iterable<String> validators) {

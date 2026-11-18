@@ -50,6 +50,11 @@ public interface ICurioItem {
     return true;
   }
 
+  /** Maximum stack count accepted while this item is equipped in a curio slot. */
+  default int getMaxStackSize(ItemStack stack) {
+    return stack.getMaxStackSize();
+  }
+
   /**
    * Called every tick on both client and server while the ItemStack is equipped.
    *

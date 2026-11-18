@@ -49,7 +49,7 @@ public final class CuriosFabricConfig {
 
     @ConfigEntry(value = "max_slots_per_page")
     @Range(min = 1, max = 48)
-    public int maxSlotsPerPage = 48;
+    public int maxSlotsPerPage = 24;
   }
 
   public enum KeepCurios {

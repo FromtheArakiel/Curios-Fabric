@@ -8,7 +8,7 @@ public enum SlotSource {
   CURIOSFABRIC("curiosfabric", "curiosfabric.identifier.", 10, true, false),
   NEOFORGE_CURIOS("neoforgecurios", "curios.identifier.", 20, true, true),
   TRINKETS("trinkets", null, 30, false, false),
-  ACCESSORIES("accessories", "accessories.slot.", 40, true, true);
+  ACCESSORIES("accessories", "accessories.slot.", 40, false, false);
 
   private final String id;
   private final String translationPrefix;
