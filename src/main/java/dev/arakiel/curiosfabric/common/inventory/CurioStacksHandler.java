@@ -798,7 +798,8 @@ public class CurioStacksHandler implements ICurioStacksHandler {
 
       if (currentSize > newSize) {
         change = change * -1;
-        this.loseStacks(this.stackHandler, identifier, change);
+        this.loseStacks(this.stackHandler, identifier, change, false);
+        this.loseStacks(this.cosmeticStackHandler, identifier, change, true);
         this.stackHandler.shrink(change);
         this.cosmeticStackHandler.shrink(change);
         NonNullList<Boolean> newList = NonNullList.withSize(Math.max(0, newSize), true);
@@ -842,7 +843,8 @@ public class CurioStacksHandler implements ICurioStacksHandler {
     }
   }
 
-  private void loseStacks(IDynamicStackHandler stackHandler, String identifier, int amount) {
+  private void loseStacks(IDynamicStackHandler stackHandler, String identifier, int amount,
+                          boolean cosmetic) {
 
     if (this.itemHandler == null) {
       return;
@@ -853,42 +855,47 @@ public class CurioStacksHandler implements ICurioStacksHandler {
          i >= 0 && i < stackHandler.getSlots();
          i++) {
       ItemStack stack = stackHandler.getStackInSlot(i);
-      drops.add(stackHandler.getStackInSlot(i));
       LivingEntity entity = this.itemHandler.getWearer();
-      SlotContext slotContext = new SlotContext(identifier, entity, i, false, this.visible);
+      SlotContext slotContext =
+          new SlotContext(identifier, entity, i, cosmetic, this.visible);
 
       if (!stack.isEmpty()) {
-        ResourceLocation id = CuriosApi.getSlotId(slotContext);
-        Multimap<Holder<Attribute>, AttributeModifier> map =
-            CuriosApi.getAttributeModifiers(slotContext, id, stack);
-        Multimap<String, AttributeModifier> slots = HashMultimap.create();
-        Set<Holder<Attribute>> toRemove = new HashSet<>();
-        AttributeMap attributeMap = entity.getAttributes();
+        drops.add(stack.copy());
+        if (!cosmetic) {
+          ResourceLocation id = CuriosApi.getSlotId(slotContext);
+          Multimap<Holder<Attribute>, AttributeModifier> map =
+              CuriosApi.getAttributeModifiers(slotContext, id, stack);
+          Multimap<String, AttributeModifier> slots = HashMultimap.create();
+          Set<Holder<Attribute>> toRemove = new HashSet<>();
+          AttributeMap attributeMap = entity.getAttributes();
 
-        for (Holder<Attribute> attribute : map.keySet()) {
+          for (Holder<Attribute> attribute : map.keySet()) {
 
-          if (attribute.value() instanceof SlotAttribute wrapper) {
-            slots.putAll(wrapper.getIdentifier(), map.get(attribute));
-            toRemove.add(attribute);
+            if (attribute.value() instanceof SlotAttribute wrapper) {
+              slots.putAll(wrapper.getIdentifier(), map.get(attribute));
+              toRemove.add(attribute);
+            }
           }
+
+          for (Holder<Attribute> attribute : toRemove) {
+            map.removeAll(attribute);
+          }
+
+          map.forEach(
+              (key, value) -> {
+                AttributeInstance attInst = attributeMap.getInstance(key);
+
+                if (attInst != null) {
+                  attInst.removeModifier(value);
+                }
+              });
+          this.itemHandler.removeSlotModifiers(slots);
+          CuriosApi.getCurio(stack)
+              .ifPresent(curio -> curio.onUnequip(slotContext, ItemStack.EMPTY));
         }
-
-        for (Holder<Attribute> attribute : toRemove) {
-          map.removeAll(attribute);
-        }
-
-        map.forEach(
-            (key, value) -> {
-              AttributeInstance attInst = attributeMap.getInstance(key);
-
-              if (attInst != null) {
-                attInst.removeModifier(value);
-              }
-            });
-        this.itemHandler.removeSlotModifiers(slots);
-        CuriosApi.getCurio(stack).ifPresent(curio -> curio.onUnequip(slotContext, ItemStack.EMPTY));
       }
       stackHandler.setStackInSlot(i, ItemStack.EMPTY);
+      stackHandler.setPreviousStackInSlot(i, ItemStack.EMPTY);
     }
     drops.forEach(this.itemHandler::loseInvalidStack);
   }

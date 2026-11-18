@@ -61,9 +61,7 @@ public final class SlotOrdering {
    */
   private static List<ISlotType> queuedSlots(Collection<ISlotType> slots) {
     List<ISlotType> defaults = new ArrayList<>();
-    List<ISlotType> curiosQueue = new ArrayList<>();
-    List<ISlotType> neoforgeQueue = new ArrayList<>();
-    List<ISlotType> trinketsQueue = new ArrayList<>();
+    List<ISlotType> bridgeQueue = new ArrayList<>();
     for (ISlotType slot : slots) {
       if (usesAnchor(slot) || isIgnoredDefaultMapping(slot)) {
         continue;
@@ -71,30 +69,24 @@ public final class SlotOrdering {
       if (isCuriosDefault(slot)) {
         defaults.add(slot);
       } else {
-        switch (slot.getSource()) {
-          case CURIOSFABRIC -> curiosQueue.add(slot);
-          case NEOFORGE_CURIOS -> neoforgeQueue.add(slot);
-          case TRINKETS -> trinketsQueue.add(slot);
-        }
+        bridgeQueue.add(slot);
       }
     }
     defaults.sort(java.util.Comparator
         .comparingInt((ISlotType slot) -> slot.getOrder().orElse(Integer.MAX_VALUE))
         .thenComparing(ISlotType::getIdentifier));
-    curiosQueue.sort(java.util.Comparator.comparing(ISlotType::getIdentifier));
-    neoforgeQueue.sort(java.util.Comparator.comparing(ISlotType::getIdentifier));
+    bridgeQueue.sort(java.util.Comparator
+        .comparingInt((ISlotType slot) -> slot.getSource().queueRank())
+        .thenComparing(ISlotType::getIdentifier));
 
-    // TODO(low): Preserve Trinkets group and slot order if its ordering policy becomes required.
-    defaults.addAll(curiosQueue);
-    defaults.addAll(neoforgeQueue);
-    defaults.addAll(trinketsQueue);
+    defaults.addAll(bridgeQueue);
     return defaults;
   }
 
   private static boolean usesAnchor(ISlotType slot) {
     return !isCuriosDefault(slot)
         && !isIgnoredDefaultMapping(slot)
-        && slot.getSource() != SlotSource.TRINKETS
+        && slot.getSource().usesOrderAnchors()
         && slot.getOrder().isPresent();
   }
 

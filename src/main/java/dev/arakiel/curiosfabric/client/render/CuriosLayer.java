@@ -14,7 +14,7 @@ import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.client.CuriosRendererRegistry;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.SlotSource;
-import dev.arakiel.curiosfabric.compat.api.CompatibilityBridges;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 
 public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> extends
@@ -69,8 +69,7 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
                     renderLayerParent.getModel(), renderLayerParent, matrixStack, renderTypeBuffer,
                     light, livingEntity, limbSwing, limbSwingAmount, partialTicks, ageInTicks,
                     netHeadYaw, headPitch};
-                CompatibilityBridges.rendererFor(slotType, finalStack, true)
-                    .ifPresent(bridge -> bridge.render(finalStack, slotContext, arguments));
+                CompatibilityRuntime.render(slotType, finalStack, slotContext, arguments);
               }
             }
           }

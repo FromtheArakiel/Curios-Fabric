@@ -382,6 +382,13 @@ public class CurioInventoryCapability implements ICuriosItemHandler {
   @Override
   public void handleInvalidStacks() {
 
+    if (this.livingEntity == null || this.livingEntity.level() == null
+        || this.livingEntity.level().isClientSide()) {
+      if (this.livingEntity != null && this.livingEntity.level() != null) {
+        this.curioInventory.invalidStacks = NonNullList.create();
+      }
+      return;
+    }
     if (this.livingEntity != null && !this.curioInventory.invalidStacks.isEmpty()) {
 
       if (this.livingEntity instanceof Player player) {
@@ -683,10 +690,11 @@ public class CurioInventoryCapability implements ICuriosItemHandler {
       ItemStack stack = stacks.getStackInSlot(j);
       ItemStack loadedStack = loaded.getStackInSlot(j);
 
-      if (stack.isEmpty()) {
+      if (!loadedStack.isEmpty()) {
+        if (!stack.isEmpty()) {
+          this.loseInvalidStack(stack);
+        }
         stacks.setStackInSlot(j, loadedStack);
-      } else {
-        this.loseInvalidStack(stack);
       }
     }
   }

@@ -41,6 +41,8 @@ import java.util.List;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.common.util.CuriosConditions;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
+import dev.arakiel.curiosfabric.compat.contribution.slot.SlotDataDirectory;
 
 public class CuriosEntityManager extends SimpleJsonResourceReloadListener
     implements IdentifiableResourceReloadListener {
@@ -61,10 +63,16 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener
     super(GSON, CuriosFabricConstants.MOD_ID + "/entities");
   }
 
-  /** Our own data layout, followed by the layout of the original Curios edition (bridge input). */
+  /** CuriosFabric-owned data plus entity directories contributed by compatibility bridges. */
   private static List<String> directories() {
-    return List.of(CuriosFabricConstants.MOD_ID + "/entities",
-        CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE + "/entities");
+    List<String> result = new java.util.ArrayList<>();
+    result.add(CuriosFabricConstants.MOD_ID + "/entities");
+    for (SlotDataDirectory directory : CompatibilityRuntime.slotDataDirectories()) {
+      if (directory.path().endsWith("/entities") && !result.contains(directory.path())) {
+        result.add(directory.path());
+      }
+    }
+    return List.copyOf(result);
   }
 
   /** Reads a JSON file of the foreign data layout, which the superclass does not hand over. */
@@ -282,6 +290,23 @@ public class CuriosEntityManager extends SimpleJsonResourceReloadListener
       merged.put(entityType, ImmutableMap.copyOf(entitySlots));
     });
     this.entitySlots = ImmutableMap.copyOf(merged);
+  }
+
+  /** Drops entity assignments whose slot type no longer exists in the authoritative slot table. */
+  public void retainSlots(Set<String> retainedSlotIds) {
+    Map<EntityType<?>, Map<String, ISlotType>> retained = new HashMap<>();
+    this.entitySlots.forEach((entityType, slots) -> {
+      Map<String, ISlotType> filtered = new LinkedHashMap<>();
+      slots.forEach((id, slot) -> {
+        if (retainedSlotIds.contains(id)) {
+          filtered.put(id, slot);
+        }
+      });
+      if (!filtered.isEmpty()) {
+        retained.put(entityType, ImmutableMap.copyOf(filtered));
+      }
+    });
+    this.entitySlots = ImmutableMap.copyOf(retained);
   }
 
   public Map<String, Set<String>> getModsFromSlots() {

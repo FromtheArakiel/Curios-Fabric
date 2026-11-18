@@ -16,28 +16,21 @@ public class CuriosFabricConstants {
    * {@code #curios:<slot>} item tags, the {@code data/<namespace>/curios/slots|entities} paths and
    * the {@code curios:<validator>} ids.
    *
-   * <p>This mod uses {@link #MOD_ID} for its own data format, which is intentionally a different
-   * identifier so that developers immediately see the two are not interchangeable. The
-   * compatibility layer translates that layout: the data managers also read those directories and
-   * the item tag predicate also accepts those tags when the NeoForge edition is present.</p>
+   * <p>This mod uses {@link #MOD_ID} for its own data format. Only the NeoForge Curios compatibility
+   * module owns behavior associated with this upstream namespace.</p>
    */
   public static final String NEOFORGE_CURIOS_DATA_NAMESPACE = "curios";
   public static final String MOD_NAME = "Curios Fabric";
   public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
 
   /** True on the physical client. */
-  public static final boolean IS_CLIENT =
-      FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT;
+  public static final boolean IS_CLIENT = detectClientEnvironment();
 
-  /**
-   * {@code true} when the resource location is in this mod's namespace or in the NeoForge
-   * {@code curios} namespace. Used when reading identifiers that may have been written by the
-   * original Curios (or by a NeoForge mod through the bridge).
-   *
-   * @param namespace The namespace to check
-   */
-  public static boolean isCuriosNamespace(String namespace) {
-    return MOD_ID.equals(namespace) || NEOFORGE_CURIOS_DATA_NAMESPACE.equals(namespace);
+  private static boolean detectClientEnvironment() {
+    try {
+      return FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT;
+    } catch (Throwable ignored) {
+      return false;
+    }
   }
-
 }

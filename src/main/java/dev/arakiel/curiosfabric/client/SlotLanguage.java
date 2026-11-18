@@ -10,7 +10,7 @@ import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
-import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
 
 /** Resolves slot names through the language namespace of their source implementation. */
 public final class SlotLanguage {
@@ -50,22 +50,13 @@ public final class SlotLanguage {
   }
 
   static String theoreticalKey(ISlotType slot) {
-    if (slot.getSource() == SlotSource.TRINKETS) {
-      return TrinketsCompat.translationKeyFor(slot.getIdentifier())
-          .orElse("trinkets.slot." + slot.getIdentifier());
-    }
-    return slot.getSource().translationKey(slot.getMappingIdentifier())
-        .orElse("curiosfabric.identifier." + slot.getMappingIdentifier());
+    return CompatibilityRuntime.translationKey(
+        slot.getIdentifier(), slot.getMappingIdentifier(), slot.getSource());
   }
 
   static String theoreticalKey(String slotId, SlotSource source) {
-    if (source == SlotSource.TRINKETS) {
-      return TrinketsCompat.translationKeyFor(slotId)
-          .orElse("trinkets.slot." + slotId);
-    }
-    return (source == null ? SlotSource.CURIOSFABRIC : source)
-        .translationKey(slotId)
-        .orElse("curiosfabric.identifier." + slotId);
+    SlotSource effective = source == null ? SlotSource.CURIOSFABRIC : source;
+    return CompatibilityRuntime.translationKey(slotId, slotId, effective);
   }
 
   private static Optional<ISlotType> findSlot(String slotId) {

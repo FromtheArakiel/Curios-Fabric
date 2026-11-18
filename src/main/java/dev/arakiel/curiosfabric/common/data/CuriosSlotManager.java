@@ -45,9 +45,10 @@ import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.common.CuriosFabricConfig;
 import dev.arakiel.curiosfabric.common.util.CuriosConditions;
-import dev.arakiel.curiosfabric.common.slottype.NeoforgeCuriosSlotManager;
+import dev.arakiel.curiosfabric.common.slottype.CuriosSlotTypeRegistry;
 import dev.arakiel.curiosfabric.common.slottype.SlotType;
-import dev.arakiel.curiosfabric.compat.NativeSlotMappings;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
+import dev.arakiel.curiosfabric.compat.contribution.slot.SlotDataDirectory;
 
 public class CuriosSlotManager extends SimpleJsonResourceReloadListener
     implements IdentifiableResourceReloadListener {
@@ -69,15 +70,23 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
     super(GSON, CuriosFabricConstants.MOD_ID + "/slots");
   }
 
-  /** Our own data layout, followed by the layout of the original Curios edition (bridge input). */
-  private static List<String> directories() {
-    return List.of(
-        CuriosFabricConstants.MOD_ID + "/slots",
-        CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE + "/slots");
+  /** CuriosFabric-owned data plus slot directories contributed by compatibility bridges. */
+  private static List<DataDirectory> directories() {
+    List<DataDirectory> result = new ArrayList<>();
+    result.add(new DataDirectory(
+        CuriosFabricConstants.MOD_ID + "/slots", SlotSource.CURIOSFABRIC, false));
+    for (SlotDataDirectory directory : CompatibilityRuntime.slotDataDirectories()) {
+      if (directory.path().endsWith("/slots")
+          && result.stream().noneMatch(value -> value.path().equals(directory.path()))) {
+        result.add(new DataDirectory(
+            directory.path(), directory.source(), directory.nativeMapping()));
+      }
+    }
+    return List.copyOf(result);
   }
 
   private static String externalSlotId(String namespace, String path) {
-    return "neoforgecurios_" + namespace.toLowerCase(java.util.Locale.ROOT) + "_" + path;
+    return namespace.toLowerCase(java.util.Locale.ROOT) + "_" + path;
   }
 
   /** Reads a JSON file of the foreign data layout, which the superclass does not hand over. */
@@ -99,27 +108,28 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
   protected void apply(@Nonnull Map<ResourceLocation, JsonElement> pObject,
                        @Nonnull ResourceManager pResourceManager,
                        @Nonnull ProfilerFiller pProfiler) {
-    NeoforgeCuriosSlotManager.buildImcSlotTypes();
+    CuriosSlotTypeRegistry.buildEntrypointSlots();
     Map<String, SlotType.Builder> map = new HashMap<>();
     Map<String, ImmutableSet.Builder<String>> modMap = new HashMap<>();
     Map<ResourceLocation, JsonElement> sorted = new LinkedHashMap<>();
     Map<ResourceLocation, SlotSource> sourceMap = new HashMap<>();
-    for (String directory : directories()) {
-      SlotSource source = directory.equals(
-          CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE + "/slots")
-          ? SlotSource.NEOFORGE_CURIOS : SlotSource.CURIOSFABRIC;
-      Map<ResourceLocation, Resource> resources = pResourceManager.listResources(directory,
+    Map<ResourceLocation, Boolean> nativeMap = new HashMap<>();
+    for (DataDirectory directory : directories()) {
+      Map<ResourceLocation, Resource> resources = pResourceManager.listResources(directory.path(),
           resource -> resource.getPath().endsWith(".json"));
-      CuriosFabricConstants.LOG.info("Found {} slot resources in {}", resources.size(), directory);
+      CuriosFabricConstants.LOG.info(
+          "Found {} slot resources in {}", resources.size(), directory.path());
       resources.forEach((resourceLocation, resource) -> {
             String path = resourceLocation.getPath();
             ResourceLocation slot = ResourceLocation.fromNamespaceAndPath(
                 resourceLocation.getNamespace(),
-                path.substring(directory.length() + 1, path.length() - ".json".length()));
+                path.substring(directory.path().length() + 1,
+                    path.length() - ".json".length()));
             JsonElement element = readJson(resource::open);
             if (element != null) {
               sorted.put(slot, element);
-              sourceMap.put(slot, source);
+              sourceMap.put(slot, directory.source());
+              nativeMap.put(slot, directory.nativeMapping());
             }
           });
     }
@@ -133,14 +143,13 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
           String id = resourcelocation.getPath();
           SlotSource source = sourceMap.getOrDefault(
               resourcelocation, SlotSource.CURIOSFABRIC);
-          String nativeId = source == SlotSource.NEOFORGE_CURIOS
-              && resourcelocation.getNamespace()
-                  .equals(CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE)
-              ? NativeSlotMappings.neoforgeNative(id) : null;
+          String nativeId = nativeMap.getOrDefault(resourcelocation, false)
+              ? CompatibilityRuntime.nativeMappedId(source, id).orElse(null) : null;
           final String mappingId = nativeId == null ? id : nativeId;
           final String slotId = nativeId == null
-              ? (source == SlotSource.NEOFORGE_CURIOS
-                  ? externalSlotId(resourcelocation.getNamespace(), id) : id)
+              ? (source == SlotSource.CURIOSFABRIC
+                  ? id : source.id() + "_"
+                      + externalSlotId(resourcelocation.getNamespace(), id))
               : nativeId;
 
           if (!CuriosConditions.matches(entry.getValue().getAsJsonObject())) {
@@ -161,16 +170,16 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
       }
     }
 
-    // Neoforge IMC slot registrations
-    for (Map.Entry<String, SlotType.Builder> entry : NeoforgeCuriosSlotManager.getImcBuilders()
+    // CuriosFabric entrypoint slot registrations
+    for (Map.Entry<String, SlotType.Builder> entry : CuriosSlotTypeRegistry.getEntrypointBuilders()
         .entrySet()) {
       SlotType.Builder builder =
           map.computeIfAbsent(entry.getKey(), (k) -> new SlotType.Builder(entry.getKey()));
-      builder.sourceIfAbsent(SlotSource.NEOFORGE_CURIOS);
+      builder.sourceIfAbsent(SlotSource.CURIOSFABRIC);
       builder.apply(entry.getValue());
     }
 
-    for (Map.Entry<String, Set<String>> entry : NeoforgeCuriosSlotManager.getIdsToMods().entrySet()) {
+    for (Map.Entry<String, Set<String>> entry : CuriosSlotTypeRegistry.getIdsToMods().entrySet()) {
       modMap.computeIfAbsent(entry.getKey(), (k) -> ImmutableSet.builder())
           .addAll(entry.getValue());
     }
@@ -187,14 +196,13 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
         String id = resourcelocation.getPath();
         SlotSource source = sourceMap.getOrDefault(
             resourcelocation, SlotSource.CURIOSFABRIC);
-        String nativeId = source == SlotSource.NEOFORGE_CURIOS
-            && resourcelocation.getNamespace()
-                .equals(CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE)
-            ? NativeSlotMappings.neoforgeNative(id) : null;
+        String nativeId = nativeMap.getOrDefault(resourcelocation, false)
+            ? CompatibilityRuntime.nativeMappedId(source, id).orElse(null) : null;
         final String mappingId = nativeId == null ? id : nativeId;
         final String slotId = nativeId == null
-            ? (source == SlotSource.NEOFORGE_CURIOS
-                ? externalSlotId(resourcelocation.getNamespace(), id) : id)
+            ? (source == SlotSource.CURIOSFABRIC
+                ? id : source.id() + "_"
+                    + externalSlotId(resourcelocation.getNamespace(), id))
             : nativeId;
 
         if (!CuriosConditions.matches(entry.getValue().getAsJsonObject())) {
@@ -286,6 +294,31 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
             entry -> ImmutableSet.copyOf(entry.getValue())));
   }
 
+  /**
+   * Removes stale dynamically-contributed slots while preserving data-pack and config slots.
+   *
+   * @param retainedIds final slot ids present in the authoritative snapshot
+   * @param bridgeOwners bridge ids whose dynamic contributions may be removed
+   */
+  public void retainDynamicSlots(Set<String> retainedIds, Set<String> bridgeOwners) {
+    Map<String, ISlotType> retainedSlots = new LinkedHashMap<>(this.slots);
+    Map<String, Set<String>> retainedOwners = new LinkedHashMap<>();
+    retainedSlots.keySet().removeIf(id -> {
+      Set<String> owners = this.idToMods.getOrDefault(id, Set.of());
+      return !retainedIds.contains(id)
+          && owners.stream().anyMatch(bridgeOwners::contains);
+    });
+    this.idToMods.forEach((id, owners) -> {
+      if (retainedSlots.containsKey(id)) {
+        retainedOwners.put(id, new HashSet<>(owners));
+      }
+    });
+    this.slots = ImmutableMap.copyOf(retainedSlots);
+    this.idToMods = retainedOwners.entrySet().stream()
+        .collect(ImmutableMap.toImmutableMap(
+            Map.Entry::getKey, entry -> ImmutableSet.copyOf(entry.getValue())));
+  }
+
   public Optional<ISlotType> getSlot(String id) {
     return Optional.ofNullable(this.slots.get(id));
   }
@@ -298,10 +331,18 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
     }
     ResourceLocation location = ResourceLocation.tryParse(id);
     if (location != null) {
-      ISlotType namespaced =
-          this.slots.get(externalSlotId(location.getNamespace(), location.getPath()));
-      if (namespaced != null) {
-        return Optional.of(namespaced);
+      String externalSuffix = externalSlotId(location.getNamespace(), location.getPath());
+      for (ISlotType slot : this.slots.values()) {
+        if (slot.getIdentifier().endsWith(externalSuffix)) {
+          return Optional.of(slot);
+        }
+      }
+      for (SlotSource source : SlotSource.values()) {
+        String nativeId = CompatibilityRuntime.nativeMappedId(source, location.getPath())
+            .orElse(null);
+        if (nativeId != null && this.slots.containsKey(nativeId)) {
+          return Optional.of(this.slots.get(nativeId));
+        }
       }
     }
     return this.slots.values().stream()
@@ -504,5 +545,8 @@ public class CuriosSlotManager extends SimpleJsonResourceReloadListener
         builder.validator(ResourceLocation.parse(jsonElement.getAsString()));
       }
     }
+  }
+
+  private record DataDirectory(String path, SlotSource source, boolean nativeMapping) {
   }
 }

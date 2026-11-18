@@ -30,9 +30,8 @@ import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
 import dev.arakiel.curiosfabric.common.event.CuriosFabricEventHandler;
 import dev.arakiel.curiosfabric.common.integration.CuriosIntegrations;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
-import dev.arakiel.curiosfabric.common.slottype.NeoforgeCuriosSlotManager;
-import dev.arakiel.curiosfabric.compat.api.CompatResourceDependencies;
-import dev.arakiel.curiosfabric.compat.api.CompatibilityBridges;
+import dev.arakiel.curiosfabric.common.slottype.CuriosSlotTypeRegistry;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
 import dev.arakiel.curiosfabric.server.SlotHelper;
 import dev.arakiel.curiosfabric.server.command.CurioArgumentType;
 import dev.arakiel.curiosfabric.server.command.CuriosFabricCommand;
@@ -62,7 +61,7 @@ public class CuriosFabric implements ModInitializer {
     CuriosIntegrations.setup();
     CuriosApi.setCuriosHelper(new CuriosHelper());
 
-    NeoforgeCuriosSlotManager.buildImcSlotTypes();
+    CuriosSlotTypeRegistry.buildEntrypointSlots();
     postExtensionsEvent();
     CuriosSelectorOptions.register();
 
@@ -71,7 +70,7 @@ public class CuriosFabric implements ModInitializer {
 
     GeminiEvents.listen(ServerLifecycleEvent.class, event -> {
       if (event.getStage() == ServerLifecycleEvent.Stage.STARTING) {
-        CompatibilityBridges.refreshMetadata("server_starting", false);
+        CompatibilityRuntime.refresh("server_starting", false);
         CuriosApi.setSlotHelper(new SlotHelper());
         Set<String> slotIds = new HashSet<>();
 
@@ -81,18 +80,20 @@ public class CuriosFabric implements ModInitializer {
         }
         CurioArgumentType.slotIds = slotIds;
       } else if (event.getStage() == ServerLifecycleEvent.Stage.STARTED) {
-        // Data packs are complete at this point. Merge again in case Trinkets exposed only its
-        // built-in slots during SERVER_STARTING.
-        CompatibilityBridges.refreshMetadata("server_started", false);
+        // Data packs are complete at this point. Merge again in case a bridge exposed only its
+        // built-in metadata during SERVER_STARTING.
+        CompatibilityRuntime.refresh("server_started", false);
         refreshSlotHelperTypes();
       } else if (event.getStage() == ServerLifecycleEvent.Stage.STOPPED) {
         CuriosApi.setSlotHelper(null);
+        CompatibilityRuntime.invalidate(
+            dev.arakiel.curiosfabric.compat.core.contract.BridgeInvalidationReason.SERVER_STOP);
       }
     });
     ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, manager, success) -> {
       if (success) {
-        // Trinkets 3.10 can rebuild its entity loader with only built-in slots after /reload.
-        // Merge so a temporarily incomplete upstream snapshot cannot erase third-party mappings.
+        // Upstream loaders can expose temporarily incomplete snapshots during /reload. Non-
+        // authoritative refreshes merge so third-party mappings are not erased.
         refreshCompatBridges("end_data_pack_reload", false);
         refreshSlotHelperTypes();
       }
@@ -116,7 +117,7 @@ public class CuriosFabric implements ModInitializer {
       public Collection<ResourceLocation> getFabricDependencies() {
         List<ResourceLocation> dependencies =
             new java.util.ArrayList<>(List.of(CuriosSlotManager.ID, CuriosEntityManager.ID));
-        dependencies.addAll(CompatResourceDependencies.current());
+        dependencies.addAll(CompatibilityRuntime.resourceDependencies());
         return dependencies;
       }
 
@@ -130,14 +131,13 @@ public class CuriosFabric implements ModInitializer {
   }
 
   /**
-   * Re-reads the Trinkets and NeoForge Curios bridges. Called after the data pack tags have been
-   * bound, which is the earliest point where the item tags are guaranteed to be available.
+   * Re-reads all compatibility bridges after the data pack tags have been bound.
    */
   private static void refreshCompatBridges(String reason, boolean authoritative) {
     // Reading the entrypoints again is cheap and makes sure slot types contributed by mods that
     // were initialized after this mod are picked up as well.
-    NeoforgeCuriosSlotManager.buildImcSlotTypes();
-    CompatibilityBridges.refreshMetadata(reason, authoritative);
+    CuriosSlotTypeRegistry.buildEntrypointSlots();
+    CompatibilityRuntime.refresh(reason, authoritative);
   }
 
   private static void refreshSlotHelperTypes() {

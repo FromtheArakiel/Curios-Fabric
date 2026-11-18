@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "package": "dev.arakiel.curiosfabric.compat.modules.neoforgecurios.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "dev.arakiel.curiosfabric.compat.mixin.CompatMixinPlugin",
+  "mixins": [
+    "NeoforgeCuriosApiHooksMixin",
+    "NeoforgeCuriosClientMixin",
+    "NeoforgeCuriosModMixin",
+    "NeoforgeCuriosRegistryMixin",
+    "NeoforgeEffectApplicableMixin"
+  ],
+  "minVersion": "0.8"
+}

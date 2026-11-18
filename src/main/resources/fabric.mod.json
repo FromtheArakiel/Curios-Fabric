@@ -31,7 +31,9 @@
   "mixins": [
     "curiosfabric.api.mixins.json",
     "curiosfabric.core.mixins.json",
-    "curiosfabric.compat.mixins.json"
+    "curiosfabric.compat.mixins.json",
+    "curiosfabric.trinkets.mixins.json",
+    "curiosfabric.neoforgecurios.mixins.json"
   ],
   "accessWidener": "curiosfabric.accesswidener",
   "depends": {

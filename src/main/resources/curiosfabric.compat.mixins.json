@@ -2,23 +2,9 @@
   "required": false,
   "package": "dev.arakiel.curiosfabric.compat.mixin",
   "compatibilityLevel": "JAVA_21",
-  "plugin": "dev.arakiel.curiosfabric.compat.CompatMixinPlugin",
+  "plugin": "dev.arakiel.curiosfabric.compat.mixin.CompatMixinPlugin",
   "mixins": [
-    "TagLoaderMixin",
-    "neoforgecurios.NeoforgeCuriosApiHooksMixin",
-    "neoforgecurios.NeoforgeCuriosClientMixin",
-    "neoforgecurios.NeoforgeCuriosModMixin",
-    "neoforgecurios.NeoforgeCuriosRegistryMixin",
-    "neoforge.NeoforgeEffectApplicableMixin",
-    "trinkets.TrinketCreativeSlotMixin",
-    "trinkets.TrinketComponentMixin",
-    "trinkets.TrinketInventorySlotMixin",
-    "trinkets.TrinketScreenManagerMixin",
-    "trinkets.TrinketGroupDataAccessor",
-    "trinkets.TrinketSlotDataAccessor",
-    "trinkets.TrinketSlotLoaderAccessor",
-    "trinkets.TrinketSlotAccessor",
-    "trinkets.TrinketsApiMixin"
+    "common.TagLoaderMixin"
   ],
   "client": [
     "client.MinecraftForeignScreensMixin"

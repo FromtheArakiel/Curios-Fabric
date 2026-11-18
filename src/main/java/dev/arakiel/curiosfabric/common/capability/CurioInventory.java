@@ -25,6 +25,7 @@ import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.ICurioStacksHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 import dev.arakiel.curiosfabric.common.inventory.CurioStacksHandler;
+import dev.arakiel.curiosfabric.common.inventory.InventoryOperationPolicy;
 import dev.arakiel.curiosfabric.common.slottype.SlotOrdering;
 import dev.arakiel.gemini.component.ComponentKey;
 import dev.arakiel.gemini.component.GeminiComponents;
@@ -46,6 +47,12 @@ public class CurioInventory implements RespawnableComponent<CurioInventory> {
       CacheBuilder.newBuilder().maximumSize(100).expireAfterWrite(1, TimeUnit.SECONDS).build();
   final Cache<String, Pair<Long, List<SlotResult>>> findCuriosCache =
       CacheBuilder.newBuilder().maximumSize(100).expireAfterWrite(1, TimeUnit.SECONDS).build();
+
+  @Override
+  public boolean shouldCopyForRespawn(boolean lossless, boolean keepInventory,
+                                      boolean sameCharacter) {
+    return InventoryOperationPolicy.shouldCopyForRespawn(lossless, sameCharacter);
+  }
 
   public void init(final ICuriosItemHandler curiosItemHandler) {
     this.curiosItemHandler = curiosItemHandler;
@@ -129,7 +136,7 @@ public class CurioInventory implements RespawnableComponent<CurioInventory> {
 
                 if (!prevCosmetic.isEmpty()) {
 
-                  if (newStacksHandler.getStacks().isItemValid(index, prevCosmetic)) {
+                  if (newStacksHandler.getCosmeticStacks().isItemValid(index, prevCosmetic)) {
                     newStacksHandler
                         .getCosmeticStacks()
                         .setStackInSlot(

@@ -44,11 +44,7 @@ import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.server.SPacketBreak;
-import dev.arakiel.curiosfabric.compat.api.CompatibilityBridges;
-import dev.arakiel.curiosfabric.compat.api.ItemBehaviorBridge;
-import dev.arakiel.curiosfabric.compat.api.ItemTagBridge;
-import dev.arakiel.curiosfabric.compat.neoforgecurios.NeoforgeCuriosCompat;
-import dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
 
 /**
  * Holds the actual implementations of the {@link CuriosApi} methods.
@@ -114,12 +110,10 @@ public class CuriosImplMixinHooks {
   private static void addCompatSlots(ItemStack stack, Map<String, ISlotType> result,
                                      Map<String, ISlotType> allSlots, boolean client) {
 
-    for (ItemTagBridge bridge : CompatibilityBridges.itemTags()) {
-      for (String slotId : bridge.slotsFor(stack, client)) {
-        for (Map.Entry<String, ISlotType> entry : allSlots.entrySet()) {
-          if (entry.getValue().getMappingIdentifier().equals(slotId)) {
-            result.putIfAbsent(entry.getKey(), entry.getValue());
-          }
+    for (String slotId : CompatibilityRuntime.slotsForItem(stack, client)) {
+      for (Map.Entry<String, ISlotType> entry : allSlots.entrySet()) {
+        if (entry.getValue().getMappingIdentifier().equals(slotId)) {
+          result.putIfAbsent(entry.getKey(), entry.getValue());
         }
       }
     }
@@ -155,34 +149,7 @@ public class CuriosImplMixinHooks {
     }
 
     if (curioItem == null) {
-      // Real Trinkets content (Potion Ring and friends) keeps its behavior in Trinket#tick and the
-      // equip hooks, so it has to win over the plain data driven bridge.
-      if (TrinketsCompat.isLoaded()
-          && dev.arakiel.curiosfabric.compat.bridge.TrinketItemAdapter.isTrinket(stack.getItem())) {
-        curioItem = new dev.arakiel.curiosfabric.compat.bridge.TrinketItemAdapter(stack.getItem());
-      }
-    }
-
-    if (curioItem == null) {
-      // A Neoforge mod's curio implements the Neoforge edition's ICurioItem, which carries its code
-      // hooks: it has to win over the plain data driven bridge, exactly like the Trinkets case.
-      if (NeoforgeCuriosCompat.isLoaded()
-          && dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter
-          .isNeoforgeCuriosItemItem(stack.getItem())) {
-        curioItem = new dev.arakiel.curiosfabric.compat.bridge.NeoforgeCuriosItemAdapter(stack.getItem());
-      }
-    }
-
-    for (ItemBehaviorBridge bridge : CompatibilityBridges.itemBehaviors()) {
-      if (curioItem == null) {
-        curioItem = bridge.resolve(stack).orElse(null);
-      }
-    }
-
-    // A Trinkets item keeps its behavior in Trinket#tick/onEquip/onUnequip: run those hooks too.
-    if (curioItem == null && TrinketsCompat.isLoaded()
-        && dev.arakiel.curiosfabric.compat.bridge.TrinketItemAdapter.isTrinket(stack.getItem())) {
-      curioItem = new dev.arakiel.curiosfabric.compat.bridge.TrinketItemAdapter(stack.getItem());
+      curioItem = CompatibilityRuntime.resolveItemBehavior(stack).orElse(null);
     }
 
     if (curioItem != null && curioItem.hasCurioCapability(stack)) {
@@ -230,7 +197,7 @@ public class CuriosImplMixinHooks {
 
       // tags
       if (stack.getTags()
-          .anyMatch(tagKey -> CuriosFabricConstants.isCuriosNamespace(
+          .anyMatch(tagKey -> CompatibilityRuntime.isSlotNamespace(
               tagKey.location().getNamespace()))) {
         return true;
       }
@@ -275,7 +242,7 @@ public class CuriosImplMixinHooks {
             AttributeModifier.Operation operation = attributeModifier.operation();
             double amount = attributeModifier.amount();
 
-            if (CuriosFabricConstants.isCuriosNamespace(rl.getNamespace())) {
+            if (CompatibilityRuntime.isSlotNamespace(rl.getNamespace())) {
               String identifier1 = rl.getPath();
               LivingEntity livingEntity = slotContext.entity();
               boolean clientSide = livingEntity == null || livingEntity.level().isClientSide();
@@ -388,8 +355,7 @@ public class CuriosImplMixinHooks {
   static {
     // Our own namespace. Slot data written for the original Curios uses the neoforge ids, which the
     // compatibility layer also accepts, so both spellings resolve to the same predicate.
-    for (String namespace : new String[]{CuriosFabricConstants.MOD_ID,
-        CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE}) {
+    for (String namespace : new String[]{CuriosFabricConstants.MOD_ID}) {
       registerCurioPredicate(ResourceLocation.fromNamespaceAndPath(namespace, "all"),
           (slotResult) -> true);
       registerCurioPredicate(ResourceLocation.fromNamespaceAndPath(namespace, "none"),
@@ -403,9 +369,8 @@ public class CuriosImplMixinHooks {
               return true;
             }
             // Items that a Neoforge mod assigned through the old "#curios:<slot>" tag.
-            return NeoforgeCuriosCompat.isLoaded()
-                && (stack.is(CuriosTags.neoforgeItemTag(id))
-                || stack.is(CuriosTags.neoforgeItemTag("curio")));
+            return CompatibilityRuntime.matchesItemSlot(id, stack, false)
+                || CompatibilityRuntime.matchesItemSlot("curio", stack, false);
           });
     }
   }

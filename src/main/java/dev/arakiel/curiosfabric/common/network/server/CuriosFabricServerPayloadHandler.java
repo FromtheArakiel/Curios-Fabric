@@ -15,12 +15,15 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotAttribute;
 import dev.arakiel.curiosfabric.api.SlotContext;
+import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainer;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainerProvider;
+import dev.arakiel.curiosfabric.common.inventory.InventoryOperationPolicy;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.client.CPacketDestroy;
 import dev.arakiel.curiosfabric.common.network.client.CPacketOpenCurios;
@@ -133,49 +136,67 @@ public class CuriosFabricServerPayloadHandler {
             player.getInventory().add(stackLeft);
             ItemStack cosmeticLeft = cosmeticStack.copy();
             player.getInventory().add(cosmeticLeft);
+            boolean functionalChanged = stackLeft.getCount() != stack.getCount();
+            boolean cosmeticChanged = cosmeticLeft.getCount() != cosmeticStack.getCount();
 
-            if (stackLeft.getCount() == stack.getCount()
-                && cosmeticLeft.getCount() == cosmeticStack.getCount()) {
+            if (!functionalChanged && !cosmeticChanged) {
               continue;
             }
-            Multimap<Holder<Attribute>, AttributeModifier> map =
-                CuriosApi.getAttributeModifiers(slotContext, CuriosApi.getSlotId(slotContext),
-                    stack);
-            Multimap<String, AttributeModifier> slots = HashMultimap.create();
-            Set<Holder<Attribute>> toRemove = new HashSet<>();
-            AttributeMap attributeMap = player.getAttributes();
 
-            for (Holder<Attribute> attribute : map.keySet()) {
+            if (functionalChanged) {
+              boolean fullyUnequipped =
+                  InventoryOperationPolicy.shouldRunUnequip(stack.getCount(), stackLeft.getCount());
+              stackHandler.setStackInSlot(i, stackLeft);
+              stackHandler.setPreviousStackInSlot(i, stackLeft.copy());
 
-              if (attribute.value() instanceof SlotAttribute wrapper) {
-                slots.putAll(wrapper.getIdentifier(), map.get(attribute));
-                toRemove.add(attribute);
+              if (fullyUnequipped && !stack.isEmpty()) {
+                removeEquippedEffects(player, handler, slotContext, stack);
               }
+
+              NetworkHandler.sendToTrackingAndSelf(player,
+                  new SPacketSyncStack(player.getId(), id, i, stackLeft,
+                      SPacketSyncStack.HandlerType.EQUIPMENT.ordinal(), new CompoundTag()));
             }
 
-            for (Holder<Attribute> attribute : toRemove) {
-              map.removeAll(attribute);
+            if (cosmeticChanged) {
+              cosmeticStackHandler.setStackInSlot(i, cosmeticLeft);
+              cosmeticStackHandler.setPreviousStackInSlot(i, cosmeticLeft.copy());
+              NetworkHandler.sendToTrackingAndSelf(player,
+                  new SPacketSyncStack(player.getId(), id, i, cosmeticLeft,
+                      SPacketSyncStack.HandlerType.COSMETIC.ordinal(), new CompoundTag()));
             }
-
-            map.forEach((key, value) -> {
-              AttributeInstance attInst = attributeMap.getInstance(key);
-
-              if (attInst != null) {
-                attInst.removeModifier(value);
-              }
-            });
-            handler.removeSlotModifiers(slots);
-            CuriosApi.getCurio(stack)
-                .ifPresent(curio -> curio.onUnequip(slotContext, stack));
-            stackHandler.setStackInSlot(i, stackLeft);
-            NetworkHandler.sendToTrackingAndSelf(player,
-                new SPacketSyncStack(player.getId(), id, i, stackLeft,
-                    SPacketSyncStack.HandlerType.EQUIPMENT.ordinal(), new CompoundTag()));
-            cosmeticStackHandler.setStackInSlot(i, cosmeticLeft);
-            NetworkHandler.sendToTrackingAndSelf(player,
-                new SPacketSyncStack(player.getId(), id, i, cosmeticLeft,
-                    SPacketSyncStack.HandlerType.COSMETIC.ordinal(), new CompoundTag()));
           }
         }));
+  }
+
+  private static void removeEquippedEffects(Player player, ICuriosItemHandler handler,
+                                            SlotContext slotContext, ItemStack stack) {
+    try {
+      Multimap<Holder<Attribute>, AttributeModifier> map =
+          CuriosApi.getAttributeModifiers(slotContext, CuriosApi.getSlotId(slotContext), stack);
+      Multimap<String, AttributeModifier> slots = HashMultimap.create();
+      Set<Holder<Attribute>> toRemove = new HashSet<>();
+      AttributeMap attributeMap = player.getAttributes();
+
+      for (Holder<Attribute> attribute : map.keySet()) {
+        if (attribute.value() instanceof SlotAttribute wrapper) {
+          slots.putAll(wrapper.getIdentifier(), map.get(attribute));
+          toRemove.add(attribute);
+        }
+      }
+      for (Holder<Attribute> attribute : toRemove) {
+        map.removeAll(attribute);
+      }
+      map.forEach((key, value) -> {
+        AttributeInstance instance = attributeMap.getInstance(key);
+        if (instance != null) {
+          instance.removeModifier(value);
+        }
+      });
+      handler.removeSlotModifiers(slots);
+      CuriosApi.getCurio(stack).ifPresent(curio -> curio.onUnequip(slotContext, stack));
+    } catch (Throwable throwable) {
+      CuriosFabricConstants.LOG.warn("Failed to complete a curio unequip", throwable);
+    }
   }
 }

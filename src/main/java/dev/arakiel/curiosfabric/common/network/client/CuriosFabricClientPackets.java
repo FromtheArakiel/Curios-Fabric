@@ -40,6 +40,7 @@ import dev.arakiel.curiosfabric.common.network.server.sync.SPacketSyncData;
 import dev.arakiel.curiosfabric.common.network.server.sync.SPacketSyncModifiers;
 import dev.arakiel.curiosfabric.common.network.server.sync.SPacketSyncRender;
 import dev.arakiel.curiosfabric.common.network.server.sync.SPacketSyncStack;
+import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
 import dev.arakiel.curiosfabric.server.command.CurioArgumentType;
 
 public class CuriosFabricClientPackets {
@@ -66,7 +67,8 @@ public class CuriosFabricClientPackets {
     Minecraft mc = Minecraft.getInstance();
     LocalPlayer clientPlayer = mc.player;
 
-    if (clientPlayer != null && clientPlayer.containerMenu instanceof CuriosContainer container) {
+    if (clientPlayer != null && clientPlayer.containerMenu instanceof CuriosContainer container
+        && container.containerId == data.windowId()) {
       container.quickMoveStack(clientPlayer, data.moveIndex());
     }
   }
@@ -189,8 +191,7 @@ public class CuriosFabricClientPackets {
   public static void handle(final SPacketSyncData data) {
     CuriosSlotManager.applySyncPacket(data.slotData);
     CuriosEntityManager.applySyncPacket(data.entityData);
-    dev.arakiel.curiosfabric.compat.trinkets.TrinketsCompat.register(
-        true, "client_sync", false);
+    CompatibilityRuntime.refreshClient("client_sync", false);
   }
 
   public static void handle(final SPacketSyncCurios data) {

@@ -536,22 +536,13 @@ public class CuriosContainer extends RecipeBookMenu<RecipeInput, Recipe<RecipeIn
     }
   }
 
-  @Nonnull
-  @Override
-  public Slot getSlot(int index) {
-
-    if (index < 0) {
-      return super.getSlot(0);
-    } else if (index >= this.slots.size()) {
-      return super.getSlot(this.slots.size() - 1);
-    }
-    return super.getSlot(index);
-  }
-
   @Override
   public void clicked(int slotId, int button, @Nonnull ClickType clickType,
                       @Nonnull Player player) {
-    Slot slot = this.getSlot(slotId);
+    if (slotId >= this.slots.size()) {
+      return;
+    }
+    Slot slot = slotId >= 0 ? this.slots.get(slotId) : null;
 
     if (slot instanceof CurioSlot curioSlot && clickType == ClickType.CLONE
         && player.hasInfiniteMaterials() && this.getCarried().isEmpty()) {

@@ -51,19 +51,4 @@ public final class CuriosTags {
     return TagKey.create(Registries.ITEM,
         ResourceLocation.fromNamespaceAndPath(dev.arakiel.curiosfabric.CuriosFabricConstants.MOD_ID, id));
   }
-
-  /**
-   * The item tag of the original (Neoforge/Neoforge) Curios edition, {@code #curios:<slot>}.
-   *
-   * <p>Only the compatibility layer reads this: items that a Neoforge mod assigned to a slot through
-   * the old tag namespace are mapped onto the matching {@link #createItemTag(String)} tag.</p>
-   *
-   * @param id The slot identifier
-   * @return An item tag key in the neoforge namespace
-   */
-  public static TagKey<Item> neoforgeItemTag(String id) {
-    return TagKey.create(Registries.ITEM,
-        ResourceLocation.fromNamespaceAndPath(dev.arakiel.curiosfabric.CuriosFabricConstants.NEOFORGE_CURIOS_DATA_NAMESPACE,
-            id));
-  }
 }

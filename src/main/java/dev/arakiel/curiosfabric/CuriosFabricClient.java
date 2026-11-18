@@ -2,6 +2,7 @@ package dev.arakiel.curiosfabric;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.entity.player.PlayerRenderer;
@@ -33,6 +34,8 @@ public class CuriosFabricClient implements ClientModInitializer {
     KeyBindingHelper.registerKeyBinding(KeyRegistry.openCurios);
     ClientEventHandler.register();
     GuiEventHandler.register();
+    ClientPlayConnectionEvents.DISCONNECT.register(
+        (handler, client) -> dev.arakiel.curiosfabric.compat.CompatibilityRuntime.invalidateClient());
     LivingEntityFeatureRendererRegistrationCallback.EVENT.register(
         (entityType, entityRenderer, registrationHelper, context) -> {
           if (entityRenderer instanceof PlayerRenderer playerRenderer) {

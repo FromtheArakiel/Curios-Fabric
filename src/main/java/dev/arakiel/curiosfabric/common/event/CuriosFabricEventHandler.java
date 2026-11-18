@@ -26,7 +26,6 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -68,6 +67,7 @@ import dev.arakiel.curiosfabric.common.CuriosFabricConfig;
 import dev.arakiel.curiosfabric.common.CuriosFabricRegistry;
 import dev.arakiel.curiosfabric.common.data.CuriosEntityManager;
 import dev.arakiel.curiosfabric.common.data.CuriosSlotManager;
+import dev.arakiel.curiosfabric.common.inventory.InventoryOperationPolicy;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainer;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.server.SPacketSetIcons;
@@ -150,6 +150,7 @@ public class CuriosFabricEventHandler {
       IDynamicStackHandler stacks,
       boolean cosmetic,
       Collection<ItemEntity> drops,
+      List<PendingDrop> pendingDrops,
       boolean keepInventory,
       DamageSource source,
       boolean recentlyHit) {
@@ -183,11 +184,13 @@ public class CuriosFabricEventHandler {
           continue;
         }
 
+        ItemEntity dropped = null;
         if (!EnchantmentHelper.has(stack, EnchantmentEffectComponents.PREVENT_EQUIPMENT_DROP)
             && dropRule != DropRule.DESTROY) {
-          drops.add(getDroppedItem(stack, livingEntity));
+          dropped = getDroppedItem(stack.copy(), livingEntity);
+          drops.add(dropped);
         }
-        stacks.setStackInSlot(i, ItemStack.EMPTY);
+        pendingDrops.add(new PendingDrop(stacks, i, stack.copy(), dropped));
       }
     }
   }
@@ -250,21 +253,6 @@ public class CuriosFabricEventHandler {
               if (handler.getCurios().isEmpty()) {
                 handler.reset();
               }
-              Tag tag = handler.writeTag();
-
-              for (Map.Entry<String, ICurioStacksHandler> entry : handler.getCurios().entrySet()) {
-                ICurioStacksHandler stacks = entry.getValue();
-
-                for (int i = 0; i < stacks.getSlots(); i++) {
-                  stacks.getStacks().setStackInSlot(i, ItemStack.EMPTY);
-                  stacks.getCosmeticStacks().setStackInSlot(i, ItemStack.EMPTY);
-                }
-              }
-              handler.readTag(tag);
-              // The block above only staged the data instead of applying it; rebuilding right away
-              // makes sure the packet below carries the real slot structure and the equipped
-              // curios instead of the cleared placeholder map.
-              handler.reset();
               payloads.add(new SPacketSyncCurios(player.getId(), handler.getCurios()));
 
               if (player.containerMenu instanceof ICuriosMenu curiosContainer) {
@@ -344,6 +332,7 @@ public class CuriosFabricEventHandler {
           .ifPresent(
               handler -> {
                 Collection<ItemEntity> curioDrops = new ArrayList<>();
+                List<PendingDrop> pendingDrops = new ArrayList<>();
                 Map<String, ICurioStacksHandler> curios = handler.getCurios();
                 boolean recentlyHit = livingEntity.getLastHurtByMob() != null
                     || livingEntity.getKillCredit() != null;
@@ -375,6 +364,7 @@ public class CuriosFabricEventHandler {
                           stacksHandler.getStacks(),
                           false,
                           curioDrops,
+                          pendingDrops,
                           finalKeepInventory,
                           source,
                           recentlyHit);
@@ -386,6 +376,7 @@ public class CuriosFabricEventHandler {
                           stacksHandler.getCosmeticStacks(),
                           true,
                           curioDrops,
+                          pendingDrops,
                           finalKeepInventory,
                           source,
                           recentlyHit);
@@ -401,14 +392,55 @@ public class CuriosFabricEventHandler {
                             recentlyHit));
 
                 if (!dropsEvent.isCanceled()) {
-                  Level level = livingEntity.level();
-
-                  for (ItemEntity drop : curioDrops) {
-                    level.addFreshEntity(drop);
-                  }
+                  completeDrops(livingEntity, curioDrops, pendingDrops);
                 }
               });
     }
+  }
+
+  private static void completeDrops(LivingEntity livingEntity, Collection<ItemEntity> drops,
+                                    List<PendingDrop> pendingDrops) {
+    Level level = livingEntity.level();
+    Set<ItemEntity> staged = new HashSet<>();
+
+    for (PendingDrop pending : pendingDrops) {
+      if (pending.entity() != null) {
+        staged.add(pending.entity());
+      }
+      if (!ItemStack.matches(pending.handler().getStackInSlot(pending.index()), pending.stack())) {
+        continue;
+      }
+      boolean accepted = pending.entity() == null || drops.contains(pending.entity());
+      if (!InventoryOperationPolicy.shouldClearAfterDrops(false, accepted)) {
+        continue;
+      }
+      if (pending.entity() != null) {
+        if (!level.addFreshEntity(pending.entity())) {
+          continue;
+        }
+      }
+      boolean cleared = false;
+      try {
+        pending.handler().setStackInSlot(pending.index(), ItemStack.EMPTY);
+        cleared = true;
+        pending.handler().setPreviousStackInSlot(pending.index(), ItemStack.EMPTY);
+      } catch (Throwable throwable) {
+        if (!cleared && pending.entity() != null) {
+          pending.entity().discard();
+        }
+        CuriosFabricConstants.LOG.warn("Failed to clear a dropped curio stack", throwable);
+      }
+    }
+
+    for (ItemEntity drop : drops) {
+      if (!staged.contains(drop)) {
+        level.addFreshEntity(drop);
+      }
+    }
+  }
+
+  private record PendingDrop(IDynamicStackHandler handler, int index, ItemStack stack,
+                             ItemEntity entity) {
   }
 
   private static InteractionResultHolder<ItemStack> curioRightClick(Player player, Level level,
