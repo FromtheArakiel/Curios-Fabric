@@ -18,6 +18,12 @@ public final class AccessoriesNativeMappings {
       Map.entry("wrist", "bracelet"),
       Map.entry("belt", "belt"),
       Map.entry("charm", "charm"));
+  private static final Set<String> IGNORED_UNIQUE_SLOTS = Set.of(
+      "accessories:head",
+      "accessories:chest",
+      "accessories:legs",
+      "accessories:feet",
+      "accessories:animal_body");
 
   private AccessoriesNativeMappings() {
   }
@@ -28,6 +34,10 @@ public final class AccessoriesNativeMappings {
 
   public static boolean isNative(String upstreamId) {
     return nativeId(upstreamId) != null;
+  }
+
+  public static boolean isIgnored(String upstreamId) {
+    return upstreamId != null && IGNORED_UNIQUE_SLOTS.contains(upstreamId);
   }
 
   public static String mappingId(String upstreamId, Set<String> claimedIds) {

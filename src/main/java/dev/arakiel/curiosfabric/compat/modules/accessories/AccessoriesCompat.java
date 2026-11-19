@@ -152,17 +152,17 @@ public final class AccessoriesCompat {
   public static void refresh(boolean client, String reason, boolean authoritative) {
     initialize();
     State state = state(client);
-    Map<String, SlotType> discoveredSlots =
-        new LinkedHashMap<>(SlotTypeLoader.INSTANCE.getSlotTypes(client));
+    Map<String, SlotType> discoveredSlots = filterSlots(
+        new LinkedHashMap<>(SlotTypeLoader.INSTANCE.getSlotTypes(client)));
     Map<EntityType<?>, Map<String, SlotType>> discoveredEntities =
         copyEntityData(EntitySlotLoader.INSTANCE.getEntitySlotData(client));
 
-    Map<String, SlotType> slots = authoritative
+    Map<String, SlotType> slots = filterSlots(authoritative
         ? discoveredSlots : mergeSlots(state.snapshot == null
-            ? Map.of() : state.snapshot.upstreamSlots, discoveredSlots);
-    Map<EntityType<?>, Map<String, SlotType>> entities = authoritative
+            ? Map.of() : state.snapshot.upstreamSlots, discoveredSlots));
+    Map<EntityType<?>, Map<String, SlotType>> entities = filterEntityData(authoritative
         ? discoveredEntities : mergeEntities(state.snapshot == null
-            ? Map.of() : state.snapshot.entitySlots, discoveredEntities);
+            ? Map.of() : state.snapshot.entitySlots, discoveredEntities));
 
     if (slots.isEmpty() && state.snapshot != null && !state.snapshot.upstreamSlots.isEmpty()
         && !authoritative) {
@@ -463,8 +463,34 @@ public final class AccessoriesCompat {
   private static Map<EntityType<?>, Map<String, SlotType>> copyEntityData(
       Map<EntityType<?>, ? extends Map<String, SlotType>> source) {
     Map<EntityType<?>, Map<String, SlotType>> result = new LinkedHashMap<>();
-    source.forEach((type, slots) ->
-        result.put(type, Collections.unmodifiableMap(new LinkedHashMap<>(slots))));
+    source.forEach((type, slots) -> {
+      Map<String, SlotType> filtered = filterSlots(slots);
+      if (!filtered.isEmpty()) {
+        result.put(type, filtered);
+      }
+    });
+    return Collections.unmodifiableMap(result);
+  }
+
+  private static Map<String, SlotType> filterSlots(Map<String, SlotType> slots) {
+    Map<String, SlotType> result = new LinkedHashMap<>();
+    slots.forEach((name, slot) -> {
+      if (!AccessoriesNativeMappings.isIgnored(name)) {
+        result.put(name, slot);
+      }
+    });
+    return Collections.unmodifiableMap(result);
+  }
+
+  private static Map<EntityType<?>, Map<String, SlotType>> filterEntityData(
+      Map<EntityType<?>, ? extends Map<String, SlotType>> source) {
+    Map<EntityType<?>, Map<String, SlotType>> result = new LinkedHashMap<>();
+    source.forEach((type, slots) -> {
+      Map<String, SlotType> filtered = filterSlots(slots);
+      if (!filtered.isEmpty()) {
+        result.put(type, filtered);
+      }
+    });
     return Collections.unmodifiableMap(result);
   }
 
@@ -501,6 +527,9 @@ public final class AccessoriesCompat {
 
       for (SlotType slot : slots.values()) {
         String upstreamName = slot.name();
+        if (AccessoriesNativeMappings.isIgnored(upstreamName)) {
+          continue;
+        }
         String nativeId = AccessoriesNativeMappings.nativeId(upstreamName);
         String instanceId = nativeId != null
             ? nativeId : AccessoriesSlotIdentity.uniqueId(

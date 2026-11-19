@@ -23,6 +23,10 @@ public final class AccessoriesTagRelations implements TagRelationContributor {
       BridgeContext context, Collection<ResourceLocation> tagIds) {
     Set<TagRelation> relations = new LinkedHashSet<>();
     for (ResourceLocation tag : tagIds) {
+      if (tag.getNamespace().equals(AccessoriesCompat.MOD_ID)
+          && AccessoriesNativeMappings.isIgnored(tag.toString())) {
+        continue;
+      }
       String upstreamName = upstreamName(tag, context);
       if (upstreamName == null) {
         continue;
@@ -53,6 +57,11 @@ public final class AccessoriesTagRelations implements TagRelationContributor {
 
   static String semanticMapping(String upstreamName, BridgeContext context) {
     if (upstreamName == null) {
+      return null;
+    }
+    if (AccessoriesNativeMappings.isIgnored(upstreamName)
+        || AccessoriesNativeMappings.isIgnored(
+            AccessoriesCompat.MOD_ID + ":" + upstreamName)) {
       return null;
     }
     if (upstreamName.equals("any")) {
