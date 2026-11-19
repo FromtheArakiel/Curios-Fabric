@@ -15,7 +15,8 @@
     "AccessoriesClientGuiMixin",
     "AccessoriesInventorySyncClientMixin",
     "AccessoriesRenderLayerMixin",
-    "AccessoriesSyncDataMixin"
+    "AccessoriesSyncDataMixin",
+    "aether.AetherAccessoriesUiGuardMixin"
   ],
   "minVersion": "0.8"
 }

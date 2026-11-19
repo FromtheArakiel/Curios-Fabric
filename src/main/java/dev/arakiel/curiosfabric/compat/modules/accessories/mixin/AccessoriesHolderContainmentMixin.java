@@ -28,7 +28,7 @@ public abstract class AccessoriesHolderContainmentMixin {
 
   @Unique
   @Nullable
-  private LivingEntity curiosfabric$entity;
+  private volatile LivingEntity curiosfabric$entity;
 
   @Inject(method = "init", at = @At("HEAD"))
   private void curiosfabric$captureEntity(

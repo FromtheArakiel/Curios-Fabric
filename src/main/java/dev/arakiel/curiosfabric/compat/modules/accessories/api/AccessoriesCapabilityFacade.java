@@ -19,6 +19,7 @@ import io.wispforest.accessories.api.slot.SlotReference;
 import io.wispforest.accessories.api.slot.SlotType;
 import io.wispforest.accessories.impl.AccessoryNestUtils;
 import it.unimi.dsi.fastutil.Pair;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,10 +45,9 @@ import net.minecraft.world.item.ItemStack;
  */
 public final class AccessoriesCapabilityFacade implements AccessoriesCapability {
 
-  private static final Map<LivingEntity, AccessoriesCapabilityFacade> FACADES =
+  private static final Map<LivingEntity, WeakReference<AccessoriesCapabilityFacade>> FACADES =
       new WeakHashMap<>();
   private final LivingEntity entity;
-  private final Map<String, AccessoriesContainerFacade> containers = new LinkedHashMap<>();
 
   private AccessoriesCapabilityFacade(LivingEntity entity) {
     this.entity = entity;
@@ -55,7 +55,13 @@ public final class AccessoriesCapabilityFacade implements AccessoriesCapability 
 
   public static AccessoriesCapabilityFacade of(LivingEntity entity) {
     synchronized (FACADES) {
-      return FACADES.computeIfAbsent(entity, AccessoriesCapabilityFacade::new);
+      WeakReference<AccessoriesCapabilityFacade> reference = FACADES.get(entity);
+      AccessoriesCapabilityFacade facade = reference == null ? null : reference.get();
+      if (facade == null) {
+        facade = new AccessoriesCapabilityFacade(entity);
+        FACADES.put(entity, new WeakReference<>(facade));
+      }
+      return facade;
     }
   }
 
@@ -77,16 +83,16 @@ public final class AccessoriesCapabilityFacade implements AccessoriesCapability 
 
   @Override
   public void reset(boolean loadedFromTag) {
-    containers.clear();
+    // Containers are built as an immutable per-call view; there is no cached state to reset.
   }
 
   @Override
   public Map<String, AccessoriesContainer> getContainers() {
-    containers.clear();
     ICuriosItemHandler inventory = CuriosApi.getCuriosInventory(entity).orElse(null);
     if (inventory == null) {
       return Map.of();
     }
+    Map<String, AccessoriesContainerFacade> containers = new LinkedHashMap<>();
     boolean client = entity.level().isClientSide();
     for (SlotType slotType : AccessoriesCompat.slots(client)) {
       if (!io.wispforest.accessories.data.EntitySlotLoader
@@ -102,7 +108,7 @@ public final class AccessoriesCapabilityFacade implements AccessoriesCapability 
               slotType.name(),
               new AccessoriesContainerFacade(this, slotType.name(), slotType, handler)));
     }
-    return Collections.unmodifiableMap(new LinkedHashMap<>(containers));
+    return Collections.unmodifiableMap(containers);
   }
 
   @Override

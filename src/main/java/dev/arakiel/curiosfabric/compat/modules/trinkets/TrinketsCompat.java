@@ -24,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -49,7 +50,7 @@ public final class TrinketsCompat {
   private static final ResourceLocation FALLBACK_ICON =
       ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID,
           "slot/empty_curio_slot");
-  private static final Map<String, TagKey<Item>> TAG_CACHE = new HashMap<>();
+  private static final Map<String, TagKey<Item>> TAG_CACHE = new ConcurrentHashMap<>();
 
   private static final State CLIENT_STATE = new State(true);
   private static final State SERVER_STATE = new State(false);
@@ -90,32 +91,36 @@ public final class TrinketsCompat {
     }
 
     State state = state(client);
-    Map<EntityType<?>, Map<String, TrinketSlot>> discoveredByEntity =
-        discoverEntitySlots(client);
-    Map<EntityType<?>, Map<String, TrinketSlot>> byEntity =
-        mergeEntityMappings(state.slotsByEntity, discoveredByEntity, authoritative);
-    Map<String, TrinketSlot> discovered = flatten(byEntity);
-    Map<String, TrinketSlot> previous = state.slotsByPath;
-    if (!discovered.isEmpty()) {
-      CuriosFabricConstants.LOG.info(
-          "Discovered {} Trinkets slot definitions across {} entity types during {}",
-          flatten(discoveredByEntity).size(), discoveredByEntity.size(), reason);
-    }
-    state.slotsByEntity = freezeEntityMappings(byEntity);
-    state.slotsByPath = Map.copyOf(discovered);
-    Map<String, String> reverse = new HashMap<>();
-    for (TrinketSlot slot : discovered.values()) {
-      reverse.putIfAbsent(slot.curiosId, slot.path);
-    }
-    state.pathByCuriosSlot = Map.copyOf(reverse);
-    logMappingState(client, reason, authoritative, previous, discovered);
+    synchronized (state) {
+      Snapshot previousSnapshot = state.snapshot;
+      Map<EntityType<?>, Map<String, TrinketSlot>> discoveredByEntity =
+          discoverEntitySlots(client);
+      Map<EntityType<?>, Map<String, TrinketSlot>> byEntity =
+          mergeEntityMappings(previousSnapshot.slotsByEntity(), discoveredByEntity, authoritative);
+      Map<String, TrinketSlot> discovered = flatten(byEntity);
+      Map<String, TrinketSlot> previous = previousSnapshot.slotsByPath();
+      if (!discovered.isEmpty()) {
+        CuriosFabricConstants.LOG.info(
+            "Discovered {} Trinkets slot definitions across {} entity types during {}",
+            flatten(discoveredByEntity).size(), discoveredByEntity.size(), reason);
+      }
+      Map<String, String> reverse = new HashMap<>();
+      for (TrinketSlot slot : discovered.values()) {
+        reverse.putIfAbsent(slot.curiosId, slot.path);
+      }
+      state.snapshot = new Snapshot(
+          Map.copyOf(discovered),
+          freezeEntityMappings(byEntity),
+          Map.copyOf(reverse));
+      logMappingState(client, reason, authoritative, previous, discovered);
 
-    for (TrinketSlot slot : discovered.values()) {
-      for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tagFor(slot.path))) {
-        CuriosApi.registerCurio(holder.value(),
-            TrinketItemAdapter.isTrinket(holder.value())
-                ? new TrinketItemAdapter(holder.value())
-                : TrinketCurio.INSTANCE);
+      for (TrinketSlot slot : discovered.values()) {
+        for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tagFor(slot.path))) {
+          CuriosApi.registerCurio(holder.value(),
+              TrinketItemAdapter.isTrinket(holder.value())
+                  ? new TrinketItemAdapter(holder.value())
+                  : TrinketCurio.INSTANCE);
+        }
       }
     }
   }
@@ -126,9 +131,9 @@ public final class TrinketsCompat {
 
   public static void invalidate(boolean client) {
     State state = state(client);
-    state.slotsByPath = Map.of();
-    state.slotsByEntity = Map.of();
-    state.pathByCuriosSlot = Map.of();
+    synchronized (state) {
+      state.snapshot = Snapshot.empty();
+    }
   }
 
   /** {@code true} after the first slot discovery has completed. */
@@ -137,7 +142,7 @@ public final class TrinketsCompat {
   }
 
   public static boolean hasDiscoveredSlots(boolean client) {
-    return !state(client).slotsByPath.isEmpty();
+    return !state(client).snapshot.slotsByPath().isEmpty();
   }
 
   public static boolean isTrinketFor(ItemStack stack, String trinketsPath) {
@@ -156,9 +161,9 @@ public final class TrinketsCompat {
       return Set.of();
     }
     ensureSlots(client);
-    State state = state(client);
+    Snapshot snapshot = state(client).snapshot;
     Set<String> result = new HashSet<>();
-    for (TrinketSlot slot : state.slotsByPath.values()) {
+    for (TrinketSlot slot : snapshot.slotsByPath().values()) {
       if (stack.is(tagFor(slot.path)) || stack.is(curiosTagFor(slot.mappingId))) {
         result.add(slot.mappingId);
       }
@@ -171,7 +176,7 @@ public final class TrinketsCompat {
         }
       }
     }
-    return result;
+    return Collections.unmodifiableSet(result);
   }
 
   public static Optional<ICurioItem> lookup(ItemStack stack) {
@@ -185,7 +190,7 @@ public final class TrinketsCompat {
 
   public static String curiosSlotOf(String trinketsPath, boolean client) {
     ensureSlots(client);
-    TrinketSlot slot = state(client).slotsByPath.get(trinketsPath);
+    TrinketSlot slot = state(client).snapshot.slotsByPath().get(trinketsPath);
     return slot == null ? null : slot.curiosId;
   }
 
@@ -195,7 +200,7 @@ public final class TrinketsCompat {
 
   public static String trinketsPathOf(String curiosSlot, boolean client) {
     ensureSlots(client);
-    return state(client).pathByCuriosSlot.get(curiosSlot);
+    return state(client).snapshot.pathByCuriosSlot().get(curiosSlot);
   }
 
   /** Entity-to-slot identifiers currently supplied by Trinkets. */
@@ -206,7 +211,7 @@ public final class TrinketsCompat {
   public static Map<EntityType<?>, Set<String>> entitySlotIds(boolean client) {
     ensureSlots(client);
     Map<EntityType<?>, Set<String>> result = new LinkedHashMap<>();
-    state(client).slotsByEntity.forEach((type, slots) -> result.put(type,
+    state(client).snapshot.slotsByEntity().forEach((type, slots) -> result.put(type,
         slots.values().stream().map(TrinketSlot::curiosId)
             .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))));
     return result;
@@ -215,23 +220,26 @@ public final class TrinketsCompat {
   /** Immutable slot definitions currently owned by the selected side's snapshot. */
   public static Collection<TrinketSlot> slots(boolean client) {
     ensureSlots(client);
-    return state(client).slotsByPath.values();
+    return state(client).snapshot.slotsByPath().values();
   }
 
   private static void ensureSlots(boolean client) {
     State state = state(client);
-    if (!state.slotsByPath.isEmpty()) {
-      return;
+    synchronized (state) {
+      if (!state.snapshot.slotsByPath().isEmpty()) {
+        return;
+      }
+      Map<EntityType<?>, Map<String, TrinketSlot>> byEntity = discoverEntitySlots(client);
+      Map<String, TrinketSlot> discovered = flatten(byEntity);
+      Map<String, String> reverse = new HashMap<>();
+      for (TrinketSlot slot : discovered.values()) {
+        reverse.putIfAbsent(slot.curiosId, slot.path);
+      }
+      state.snapshot = new Snapshot(
+          Map.copyOf(discovered),
+          freezeEntityMappings(byEntity),
+          Map.copyOf(reverse));
     }
-    Map<EntityType<?>, Map<String, TrinketSlot>> byEntity = discoverEntitySlots(client);
-    Map<String, TrinketSlot> discovered = flatten(byEntity);
-    Map<String, String> reverse = new HashMap<>();
-    for (TrinketSlot slot : discovered.values()) {
-      reverse.putIfAbsent(slot.curiosId, slot.path);
-    }
-    state.slotsByEntity = freezeEntityMappings(byEntity);
-    state.slotsByPath = Map.copyOf(discovered);
-    state.pathByCuriosSlot = Map.copyOf(reverse);
   }
 
   private static Map<EntityType<?>, Map<String, TrinketSlot>> mergeEntityMappings(
@@ -288,7 +296,7 @@ public final class TrinketsCompat {
     CuriosFabricConstants.LOG.info(
         "Trinkets bridge [{}] side={} mode={} entities={} mappedSlots={} added={} retained={} removed={}",
         reason, client ? "client" : "server", authoritative ? "replace" : "merge",
-        state(client).slotsByEntity.size(), effective.size(),
+        state(client).snapshot.slotsByEntity().size(), effective.size(),
         added.size(), retained.size(), removed.size());
     CuriosFabricConstants.LOG.debug(
         "Trinkets bridge [{}] effective paths={} added={} retained={} removed={}",
@@ -491,7 +499,7 @@ public final class TrinketsCompat {
         result.add(ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, mapped));
       }
     }
-    return result;
+    return Collections.unmodifiableSet(result);
   }
 
   private static TagKey<Item> tagFor(String trinketsPath) {
@@ -509,11 +517,19 @@ public final class TrinketsCompat {
   }
 
   private static final class State {
-    private volatile Map<String, TrinketSlot> slotsByPath = Map.of();
-    private volatile Map<EntityType<?>, Map<String, TrinketSlot>> slotsByEntity = Map.of();
-    private volatile Map<String, String> pathByCuriosSlot = Map.of();
+    private volatile Snapshot snapshot = Snapshot.empty();
 
     private State(boolean client) {
+    }
+  }
+
+  private record Snapshot(
+      Map<String, TrinketSlot> slotsByPath,
+      Map<EntityType<?>, Map<String, TrinketSlot>> slotsByEntity,
+      Map<String, String> pathByCuriosSlot) {
+
+    private static Snapshot empty() {
+      return new Snapshot(Map.of(), Map.of(), Map.of());
     }
   }
 

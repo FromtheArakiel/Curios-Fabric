@@ -25,6 +25,8 @@ public final class CompatTargets {
   public static final String ACCESSORIES = "accessories";
   /** Package of the Accessories client side. */
   public static final String ACCESSORIES_CLIENT_PACKAGE = "io.wispforest.accessories.client";
+  /** The mod id of Aether. */
+  public static final String AETHER = "aether";
 
   private CompatTargets() {
   }
@@ -47,6 +49,12 @@ public final class CompatTargets {
   public static boolean isAccessoriesLoaded() {
     return GeminiIntegrations.isModLoaded(ACCESSORIES)
         || classExists("io.wispforest.accessories.api.AccessoriesAPI");
+  }
+
+  /** {@code true} when Aether is present. */
+  public static boolean isAetherLoaded() {
+    return GeminiIntegrations.isModLoaded(AETHER)
+        || classExists("com.aetherteam.aether.Aether");
   }
 
   /** {@code true} when a NeoForge runtime (Kilt, Connector, ...) provides the NeoForge hooks. */
