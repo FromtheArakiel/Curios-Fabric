@@ -306,12 +306,31 @@ public final class AccessoriesCompat {
   @Nullable
   public static SlotReference referenceOrFallback(
       dev.arakiel.curiosfabric.api.SlotContext context, ItemStack stack) {
+    return referenceOrFallback(context, stack, null);
+  }
+
+  @Nullable
+  public static SlotReference referenceOrFallback(
+      dev.arakiel.curiosfabric.api.SlotContext context,
+      ItemStack stack,
+      @Nullable String fallbackSlot) {
     SlotReference reference = reference(context, stack);
-    if (reference != null) {
+    if (fallbackSlot == null && reference != null) {
       return reference;
     }
     boolean client = context.entity() != null
         ? context.entity().level().isClientSide() : CuriosFabricConstants.IS_CLIENT;
+    if (fallbackSlot != null) {
+      String fallbackCuriosId = curiosIdFor(fallbackSlot, client);
+      if (fallbackCuriosId != null
+          && ensure(client).upstreamSlots.containsKey(fallbackSlot)) {
+        return SlotReference.of(
+            context.entity(), fallbackSlot, Math.max(0, context.index()));
+      }
+    }
+    if (reference != null) {
+      return reference;
+    }
     List<String> aliases = upstreamNamesFor(context.identifier(), client);
     if (aliases.isEmpty()) {
       return null;

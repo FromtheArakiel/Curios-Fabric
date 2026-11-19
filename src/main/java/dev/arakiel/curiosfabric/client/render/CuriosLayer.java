@@ -12,8 +12,8 @@ import net.minecraft.world.item.ItemStack;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.client.CuriosRendererRegistry;
+import dev.arakiel.curiosfabric.api.client.ICurioRenderer;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
-import dev.arakiel.curiosfabric.api.type.SlotSource;
 import dev.arakiel.curiosfabric.compat.CompatibilityRuntime;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 
@@ -53,17 +53,14 @@ public class CuriosLayer<T extends LivingEntity, M extends EntityModel<T>> exten
               ItemStack finalStack = stack;
               ISlotType slotType =
                   CuriosApi.getSlot(id, livingEntity.level()).orElse(null);
-              SlotSource source =
-                  slotType == null ? SlotSource.CURIOSFABRIC : slotType.getSource();
 
-              if (source == SlotSource.CURIOSFABRIC
-                  && CuriosRendererRegistry.getRenderer(stack.getItem()).isPresent()) {
-                CuriosRendererRegistry.getRenderer(stack.getItem()).ifPresent(
-                    renderer -> {
-                      renderer.render(finalStack, slotContext, matrixStack, renderLayerParent,
-                          renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
-                          ageInTicks, netHeadYaw, headPitch);
-                    });
+              var nativeRenderer =
+                  CuriosRendererRegistry.getRenderer(stack.getItem());
+              if (nativeRenderer.isPresent()) {
+                ICurioRenderer renderer = nativeRenderer.get();
+                renderer.render(finalStack, slotContext, matrixStack, renderLayerParent,
+                    renderTypeBuffer, light, limbSwing, limbSwingAmount, partialTicks,
+                    ageInTicks, netHeadYaw, headPitch);
               } else {
                 Object[] arguments = {
                     renderLayerParent.getModel(), renderLayerParent, matrixStack, renderTypeBuffer,

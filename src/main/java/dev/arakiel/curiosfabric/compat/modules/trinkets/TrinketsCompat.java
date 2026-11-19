@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nullable;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -179,6 +180,26 @@ public final class TrinketsCompat {
     return Collections.unmodifiableSet(result);
   }
 
+  /** Strictly identifies items authored by Trinkets without consulting CuriosFabric tags. */
+  public static boolean isOriginalTrinketItem(
+      ItemStack stack,
+      @Nullable net.minecraft.world.entity.LivingEntity entity,
+      boolean client) {
+    if (!isLoaded() || stack.isEmpty()) {
+      return false;
+    }
+    if (TrinketItemAdapter.isTrinket(stack.getItem())) {
+      return true;
+    }
+    ensureSlots(client);
+    for (TrinketSlot slot : state(client).snapshot.slotsByPath().values()) {
+      if (stack.is(tagFor(slot.path))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public static Optional<ICurioItem> lookup(ItemStack stack) {
     return slotsFor(stack, false).isEmpty() && slotsFor(stack, true).isEmpty()
         ? Optional.empty() : Optional.of(TrinketCurio.INSTANCE);
@@ -201,6 +222,41 @@ public final class TrinketsCompat {
   public static String trinketsPathOf(String curiosSlot, boolean client) {
     ensureSlots(client);
     return state(client).snapshot.pathByCuriosSlot().get(curiosSlot);
+  }
+
+  /**
+   * Returns the Accessories body-slot name that can be used for an optional renderer fallback.
+   * This is a rendering hint only; it never participates in item qualification or slot storage.
+   */
+  public static String rendererFallbackSlot(String curiosSlot, boolean client) {
+    String path = trinketsPathOf(curiosSlot, client);
+    if (path == null) {
+      return null;
+    }
+    return rendererFallbackSlotForPath(path);
+  }
+
+  static String rendererFallbackSlotForPath(String path) {
+    if (path == null) {
+      return null;
+    }
+    return switch (path) {
+      case "head/hat" -> "hat";
+      case "head/face" -> "face";
+      case "chest/necklace" -> "necklace";
+      case "chest/back", "chest/cape" -> "back";
+      case "hand/ring", "offhand/ring" -> "ring";
+      case "hand/glove", "offhand/glove" -> "hand";
+      case "legs/belt" -> "belt";
+      default -> switch (path.substring(0, Math.max(0, path.indexOf('/')))) {
+        case "head" -> "hat";
+        case "chest" -> "necklace";
+        case "hand", "offhand" -> "hand";
+        case "legs" -> "belt";
+        case "feet" -> "shoes";
+        default -> null;
+      };
+    };
   }
 
   /** Entity-to-slot identifiers currently supplied by Trinkets. */

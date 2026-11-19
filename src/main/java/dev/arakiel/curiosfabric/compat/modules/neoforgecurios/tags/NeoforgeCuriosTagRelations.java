@@ -27,7 +27,7 @@ public final class NeoforgeCuriosTagRelations implements TagRelationContributor 
       relations.add(new TagRelation(
           tag,
           ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, tag.getPath()),
-          TagRelationDirection.BIDIRECTIONAL,
+          TagRelationDirection.ONE_WAY,
           "neoforge_curios_slot_mapping"));
     }
     return new TagRelationSet(relations);

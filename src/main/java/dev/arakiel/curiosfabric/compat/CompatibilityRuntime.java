@@ -98,16 +98,22 @@ public final class CompatibilityRuntime {
 
   public static RendererDecision rendererDecision(ISlotType slotType, ItemStack stack,
                                                   SlotContext context, Object[] arguments) {
-    return COORDINATOR.rendererDecision(new RendererQuery(
+    boolean client = true;
+    RendererQuery query = new RendererQuery(
         slotType == null ? SlotSource.CURIOSFABRIC : slotType.getSource(),
-        stack, context, arguments, true));
+        stack, context, arguments, client);
+    return COORDINATOR.rendererDecision(
+        query.withFallbackSlot(COORDINATOR.rendererFallbackSlot(query)));
   }
 
   public static boolean render(ISlotType slotType, ItemStack stack,
                                SlotContext context, Object[] arguments) {
-    return COORDINATOR.render(new RendererQuery(
+    boolean client = true;
+    RendererQuery query = new RendererQuery(
         slotType == null ? SlotSource.CURIOSFABRIC : slotType.getSource(),
-        stack, context, arguments, true));
+        stack, context, arguments, client);
+    return COORDINATOR.render(
+        query.withFallbackSlot(COORDINATOR.rendererFallbackSlot(query)));
   }
 
   public static Collection<ResourceLocation> resourceDependencies() {

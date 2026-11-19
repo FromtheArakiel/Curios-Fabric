@@ -195,6 +195,26 @@ public final class CompatibilityCoordinator {
             .orElse(CuriosFabricConstants.MOD_ID + ".identifier." + mappingId));
   }
 
+  public String rendererFallbackSlot(RendererQuery query) {
+    BridgeContext bridgeContext = currentContext(
+        query.client() ? BridgeSide.CLIENT : BridgeSide.SERVER,
+        BridgePhase.RUNTIME, BridgeRefreshReason.INIT, false);
+    for (CompatibilityBridge bridge : registry.active(bridgeContext)) {
+      try {
+        String hint = bridge.services().renderer()
+            .fallbackSlot(query).orElse(null);
+        if (hint != null) {
+          return hint;
+        }
+      } catch (Throwable throwable) {
+        CuriosFabricConstants.LOG.warn(
+            "Compatibility bridge {} failed renderer fallback-slot discovery",
+            bridge.descriptor().id(), throwable);
+      }
+    }
+    return null;
+  }
+
   public Set<String> slotsForItem(ItemStack stack, boolean client) {
     return slotsForItem(stack, null, client);
   }
@@ -414,9 +434,10 @@ public final class CompatibilityCoordinator {
     Set<TagRelation> relations = new LinkedHashSet<>();
     tagsByMapping.values().forEach(tags -> {
       List<ResourceLocation> values = List.copyOf(tags);
+      ResourceLocation semantic = values.getFirst();
       for (int index = 1; index < values.size(); index++) {
         relations.add(new TagRelation(
-            values.getFirst(), values.get(index), TagRelationDirection.BIDIRECTIONAL,
+            values.get(index), semantic, TagRelationDirection.ONE_WAY,
             "shared_semantic_slot"));
       }
     });
@@ -445,11 +466,15 @@ public final class CompatibilityCoordinator {
       if (namespace == null || namespace.equals(CuriosFabricConstants.MOD_ID)) {
         continue;
       }
-      semanticTags.forEach((path, semanticTag) -> result.add(new TagRelation(
-          semanticTag,
-          ResourceLocation.fromNamespaceAndPath(namespace, path),
-          TagRelationDirection.BIDIRECTIONAL,
-          "cross_bridge_semantic_alias")));
+      semanticTags.forEach((path, semanticTag) -> {
+        ResourceLocation upstream =
+            ResourceLocation.fromNamespaceAndPath(namespace, path);
+        result.add(new TagRelation(
+            upstream,
+            semanticTag,
+            TagRelationDirection.ONE_WAY,
+            "cross_bridge_semantic_alias"));
+      });
     }
     return new TagRelationSet(result);
   }
@@ -470,9 +495,9 @@ public final class CompatibilityCoordinator {
           continue;
         }
         result.add(new TagRelation(
-            tag,
             ResourceLocation.fromNamespaceAndPath(namespace, tag.getPath()),
-            TagRelationDirection.BIDIRECTIONAL,
+            tag,
+            TagRelationDirection.ONE_WAY,
             "direct_namespace_alias"));
       }
     }

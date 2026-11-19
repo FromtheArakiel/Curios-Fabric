@@ -7,8 +7,11 @@ import mezz.jei.api.registration.IGuiHandlerRegistration;
 import net.minecraft.resources.ResourceLocation;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
 import dev.arakiel.curiosfabric.client.gui.CuriosScreen;
+import dev.arakiel.gemini.integration.GeminiIntegration;
+import dev.arakiel.gemini.integration.GeminiIntegrationType;
 
 @JeiPlugin
+@GeminiIntegration(value = "jei", type = GeminiIntegrationType.CLIENT)
 public class CuriosJeiPlugin implements IModPlugin {
 
   @Override

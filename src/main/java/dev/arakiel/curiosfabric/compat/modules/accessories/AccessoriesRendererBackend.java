@@ -25,7 +25,7 @@ final class AccessoriesRendererBackend {
 
   static boolean render(RendererQuery query) {
     SlotReference reference = AccessoriesCompat.referenceOrFallback(
-        query.slotContext(), query.stack());
+        query.slotContext(), query.stack(), query.fallbackSlot());
     if (reference == null) {
       return false;
     }

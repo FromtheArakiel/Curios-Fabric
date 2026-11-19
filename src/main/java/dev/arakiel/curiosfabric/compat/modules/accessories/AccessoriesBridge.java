@@ -185,6 +185,12 @@ public final class AccessoriesBridge implements CompatibilityBridge {
     }
 
     @Override
+    public boolean supportsFallback(RendererQuery query) {
+      return query.slotSource() != SlotSource.ACCESSORIES
+          && !query.stack().isEmpty();
+    }
+
+    @Override
     public boolean render(RendererQuery query) {
       return AccessoriesRendererBackend.render(query);
     }

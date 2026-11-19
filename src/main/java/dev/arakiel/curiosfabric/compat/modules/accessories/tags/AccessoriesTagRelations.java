@@ -39,7 +39,7 @@ public final class AccessoriesTagRelations implements TagRelationContributor {
           tag,
           ResourceLocation.fromNamespaceAndPath(
               CuriosFabricConstants.MOD_ID, mappingId),
-          TagRelationDirection.BIDIRECTIONAL,
+          TagRelationDirection.ONE_WAY,
           "accessories_slot_mapping"));
     }
     return new TagRelationSet(relations);

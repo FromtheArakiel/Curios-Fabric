@@ -30,7 +30,7 @@ public final class TrinketsTagRelations implements TagRelationContributor {
       relations.add(new TagRelation(
           tag,
           ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, mappingId),
-          TagRelationDirection.BIDIRECTIONAL,
+          TagRelationDirection.ONE_WAY,
           "trinkets_slot_mapping"));
     }
     return new TagRelationSet(relations);

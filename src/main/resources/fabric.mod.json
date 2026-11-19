@@ -26,6 +26,9 @@
     "jei_mod_plugin": [
       "dev.arakiel.curiosfabric.common.integration.jei.CuriosJeiPlugin"
     ],
+    "rei_client": [
+      "dev.arakiel.curiosfabric.common.integration.rei.CuriosReiPlugin"
+    ],
     "curiosfabric": []
   },
   "mixins": [
@@ -51,7 +54,9 @@
   },
   "suggests": {
     "accessories": ">=1.1.0-beta.54",
+    "emi": "*",
     "jei": "*",
-    "modmenu": "*"
+    "modmenu": "*",
+    "roughlyenoughitems": "*"
   }
 }

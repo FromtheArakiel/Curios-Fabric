@@ -47,6 +47,12 @@ dependencies {
 	// Optional integration targets: compiled against, never required at runtime.
 	modCompileOnly localMod("jei-1.21.1-fabric-${project.jei_version}.jar")
 	modCompileOnly localMod("modmenu-${project.modmenu_version}.jar")
+	modCompileOnly files("mods/emi-1.1.24+1.21.1+fabric.jar")
+	modCompileOnly files("mods/RoughlyEnoughItems-16.0.799-fabric.jar")
+	modCompileOnly files("mods/cloth-config-15.0.140-fabric.jar")
+	modCompileOnly files("mods/architectury-13.0.12-fabric.jar")
+	modCompileOnly localMod("basic-math-0.6.1.jar")
+	modCompileOnly files("run/mods/trinkets-3.10.0.jar")
 	// Accessories is an optional Fabric compatibility target. The jar lives in mods/ because it is
 	// also used by the real run configuration.
 	modCompileOnly files("mods/accessories-fabric-1.1.0-beta.54+1.21.1.jar")

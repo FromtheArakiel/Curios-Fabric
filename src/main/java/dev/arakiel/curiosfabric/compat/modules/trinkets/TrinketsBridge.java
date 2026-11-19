@@ -31,6 +31,7 @@ import dev.arakiel.curiosfabric.compat.core.contract.BridgeState;
 import dev.arakiel.curiosfabric.compat.core.contract.CompatibilityBridge;
 import dev.arakiel.curiosfabric.compat.core.contract.ContributionStatus;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.api.TrinketsApiFacade;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.client.TrinketsRendererIntegration;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.discovery.TrinketsNativeMappings;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.item.TrinketItemAdapter;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.lifecycle.TrinketsResourceDependencies;
@@ -187,7 +188,23 @@ public final class TrinketsBridge implements CompatibilityBridge {
   private static final class Renderer implements RendererContributor {
     @Override
     public boolean supports(RendererQuery query) {
-      return TrinketsApiFacade.hasRenderer(query.stack());
+      return TrinketsRendererIntegration.hasRenderer(query.stack());
+    }
+
+    @Override
+    public Optional<String> fallbackSlot(RendererQuery query) {
+      if (!ownsItemForFallback(query)) {
+        return Optional.empty();
+      }
+      return Optional.ofNullable(
+          TrinketsCompat.rendererFallbackSlot(
+              query.slotContext().identifier(), query.client()));
+    }
+
+    @Override
+    public boolean ownsItemForFallback(RendererQuery query) {
+      return TrinketsCompat.isOriginalTrinketItem(
+          query.stack(), query.slotContext().entity(), query.client());
     }
 
     @Override
@@ -195,7 +212,7 @@ public final class TrinketsBridge implements CompatibilityBridge {
       Object reference = TrinketsApiFacade.slotReference(
           query.slotContext().identifier(), query.slotContext().index(),
           query.slotContext().entity(), query.stack());
-      return TrinketsApiFacade.renderForeign(rendererArguments(query, reference));
+      return TrinketsRendererIntegration.render(rendererArguments(query, reference));
     }
   }
 

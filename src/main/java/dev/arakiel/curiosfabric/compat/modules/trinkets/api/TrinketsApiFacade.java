@@ -2,16 +2,12 @@ package dev.arakiel.curiosfabric.compat.modules.trinkets.api;
 
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimap;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
-import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Tuple;
 import net.minecraft.world.entity.Entity;
@@ -29,8 +25,11 @@ import dev.arakiel.curiosfabric.compat.contribution.api.ForeignApiFacade;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeContext;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeInvalidationReason;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.TrinketsCompat;
-import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.runtime.TrinketsRuntimeIntegration;
 import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
+import dev.emi.trinkets.api.SlotGroup;
+import dev.emi.trinkets.api.SlotType;
+import dev.emi.trinkets.api.TrinketEnums;
 
 /**
  * Presents this mod's accessory data through Trinkets' interfaces.
@@ -135,57 +134,45 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
   }
 
   private static Map<String, Object> entitySlots(Map<String, ISlotType> source) {
-    try {
-      Class<?> groupClass = CompatTargets.loadClass(API + "SlotGroup");
-      Class<?> builderClass = CompatTargets.loadClass(API + "SlotGroup$Builder");
-      Class<?> slotTypeClass = CompatTargets.loadClass(API + "SlotType");
-      Class<?> dropRuleClass = CompatTargets.loadClass(API + "TrinketEnums$DropRule");
-      if (groupClass == null || builderClass == null || slotTypeClass == null
-          || dropRuleClass == null) {
-        return Map.of();
+    Map<String, SlotGroup.Builder> builders = new LinkedHashMap<>();
+    for (ISlotType slot : source.values()) {
+      String path = TrinketsCompat.trinketsPathOf(slot.getIdentifier(), false);
+      if (path == null) {
+        path = TrinketsCompat.trinketsPathOf(slot.getIdentifier(), true);
       }
-
-      Map<String, Object> builders = new LinkedHashMap<>();
-      int groupId = 0;
-      for (ISlotType slot : source.values()) {
-        String path = TrinketsCompat.trinketsPathOf(slot.getIdentifier(), false)
-            == null ? TrinketsCompat.trinketsPathOf(slot.getIdentifier(), true)
-            : TrinketsCompat.trinketsPathOf(slot.getIdentifier(), false);
-        if (path == null) {
-          continue;
-        }
-        int separator = path.indexOf('/');
-        if (separator < 1 || separator == path.length() - 1) {
-          continue;
-        }
-        String group = path.substring(0, separator);
-        String name = path.substring(separator + 1);
-        Object builder = builders.get(group);
-        if (builder == null) {
-          builder = builderClass.getConstructor(String.class, int.class, int.class)
-              .newInstance(group, groupId++, slot.getOrder().orElse(0));
-          builders.put(group, builder);
-        }
-        Object dropRule = ForeignProxy.enumConstant(
-            dropRuleClass, slot.getDropRule().name(), dropRuleClass.getEnumConstants()[0]);
-        Object trinketSlot = slotTypeClass.getConstructor(
-                String.class, String.class, int.class, int.class, ResourceLocation.class,
-                java.util.Set.class, java.util.Set.class, java.util.Set.class, dropRuleClass)
-            .newInstance(group, name, slot.getOrder().orElse(0), slot.getSize(), slot.getIcon(),
-                java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), dropRule);
-        builderClass.getMethod("addSlot", String.class, slotTypeClass)
-            .invoke(builder, name, trinketSlot);
+      if (path == null) {
+        continue;
       }
-
-      Map<String, Object> result = new LinkedHashMap<>();
-      for (Map.Entry<String, Object> entry : builders.entrySet()) {
-        result.put(entry.getKey(), builderClass.getMethod("build").invoke(entry.getValue()));
+      int separator = path.indexOf('/');
+      if (separator < 1 || separator == path.length() - 1) {
+        continue;
       }
-      return result;
-    } catch (Throwable throwable) {
-      CuriosFabricConstants.LOG.debug("Could not build the Trinkets entity slot view", throwable);
-      return Map.of();
+      String group = path.substring(0, separator);
+      String name = path.substring(separator + 1);
+      SlotGroup.Builder builder = builders.computeIfAbsent(
+          group, ignored -> new SlotGroup.Builder(group, builders.size(), slot.getOrder().orElse(0)));
+      TrinketEnums.DropRule dropRule;
+      try {
+        dropRule = TrinketEnums.DropRule.valueOf(slot.getDropRule().name());
+      } catch (IllegalArgumentException exception) {
+        dropRule = TrinketEnums.DropRule.DEFAULT;
+      }
+      SlotType trinketSlot = new SlotType(
+          group,
+          name,
+          slot.getOrder().orElse(0),
+          slot.getSize(),
+          slot.getIcon(),
+          java.util.Set.of(),
+          java.util.Set.of(),
+          java.util.Set.of(),
+          dropRule);
+      builder.addSlot(name, trinketSlot);
     }
+
+    Map<String, Object> result = new LinkedHashMap<>();
+    builders.forEach((group, builder) -> result.put(group, builder.build()));
+    return result;
   }
 
   private static boolean isEquipped(ICuriosItemHandler ours, Object[] args) {
@@ -329,137 +316,7 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
   /** {@link #slotReference(String, int, LivingEntity)} with the stack that currently sits there. */
   public static Object slotReference(String curiosSlot, int index, LivingEntity entity,
                                      ItemStack stack) {
-
-    try {
-      Class<?> slotTypeClass = CompatTargets.loadClass(API + "SlotType");
-      Class<?> inventoryClass = CompatTargets
-          .loadClass(API + "TrinketInventory");
-      Class<?> referenceClass = CompatTargets
-          .loadClass(API + "SlotReference");
-      Class<?> componentClass = CompatTargets
-          .loadClass(API + "TrinketComponent");
-      Class<?> dropRuleClass = CompatTargets
-          .loadClass(API + "TrinketEnums$DropRule");
-
-      if (slotTypeClass == null || inventoryClass == null || referenceClass == null
-          || componentClass == null || dropRuleClass == null) {
-        return null;
-      }
-      boolean client = entity != null && entity.level() != null && entity.level().isClientSide();
-      String path = TrinketsCompat.trinketsPathOf(curiosSlot, client);
-      String group = path == null ? curiosSlot : groupOf(path);
-      String slot = path == null ? curiosSlot : slotOf(path);
-      int size = Math.max(1, index + 1);
-      Object slotType = slotType(slotTypeClass, dropRuleClass, group, slot, size);
-      Object inventory = inventoryClass
-          .getConstructor(slotTypeClass, componentClass, Consumer.class)
-          .newInstance(slotType, component(entity), (Consumer<Object>) ignored -> {
-          });
-      seedStacks(inventoryClass, inventory, index, stack);
-      return referenceClass.getConstructor(inventoryClass, int.class).newInstance(inventory, index);
-    } catch (Throwable throwable) {
-      CuriosFabricConstants.LOG.debug("Failed to build a bridged Trinkets SlotReference", throwable);
-      return null;
-    }
-  }
-
-  private static Object slotType(Class<?> slotTypeClass, Class<?> dropRuleClass, String group,
-                                 String slot, int size) throws Exception {
-    Object dropRule = ForeignProxy.enumConstant(dropRuleClass, "DEFAULT",
-        dropRuleClass.getEnumConstants()[0]);
-    return slotTypeClass
-        .getConstructor(String.class, String.class, int.class, int.class, ResourceLocation.class,
-            java.util.Set.class, java.util.Set.class, java.util.Set.class, dropRuleClass)
-        .newInstance(group, slot, 0, size,
-            ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, "slot/empty_curio_slot"),
-            java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), dropRule);
-  }
-
-  private static void seedStacks(Class<?> inventoryClass, Object inventory, int index,
-                                 ItemStack stack) throws Exception {
-
-    if (stack == null || stack.isEmpty()) {
-      return;
-    }
-    Field field = stacksField(inventoryClass);
-
-    if (field == null) {
-      return;
-    }
-    @SuppressWarnings("unchecked")
-    NonNullList<ItemStack> list = (NonNullList<ItemStack>) field.get(inventory);
-
-    if (list != null && index >= 0 && index < list.size()) {
-      list.set(index, stack);
-    }
-  }
-
-  private static Field stacksField(Class<?> inventoryClass) {
-
-    try {
-      Field field = inventoryClass.getDeclaredField("stacks");
-      field.setAccessible(true);
-      return field;
-    } catch (Throwable throwable) {
-      return null;
-    }
-  }
-
-  /**
-   * Invokes the renderer that Trinkets registered for this item, if it has one.
-   *
-   * <p>All arguments are passed as {@link Object} because this class is loaded on the dedicated
-   * server as well, where client only rendering types do not exist. The order matches the Trinkets
-   * contract for 1.21.1: stack, slot reference, entity model, matrices, vertex consumers, light,
-   * entity, limb angle, limb distance, tick delta, animation progress, head yaw, head pitch.</p>
-   *
-   * @param args The render arguments
-   * @return {@code true} when a Trinkets renderer was invoked
-   */
-  public static boolean renderForeign(Object[] args) {
-
-    try {
-      Class<?> registry = CompatTargets
-          .loadClass(API + "client.TrinketRendererRegistry");
-
-      if (registry == null || args.length < 3) {
-        return false;
-      }
-      Object optional = registry.getMethod("getRenderer", Item.class)
-          .invoke(null, ((ItemStack) args[0]).getItem());
-
-      if (!(optional instanceof Optional<?> found) || found.isEmpty()) {
-        return false;
-      }
-      Object renderer = found.get();
-
-      for (Method method : renderer.getClass().getMethods()) {
-
-        if (method.getName().equals("render") && method.getParameterCount() == args.length) {
-          method.invoke(renderer, args);
-          return true;
-        }
-      }
-    } catch (Throwable throwable) {
-      CuriosFabricConstants.LOG.debug("Failed to invoke a bridged Trinkets renderer", throwable);
-    }
-    return false;
-  }
-
-  /** {@code true} when Trinkets has a renderer for this item. */
-  public static boolean hasRenderer(ItemStack stack) {
-    try {
-      Class<?> registry = CompatTargets
-          .loadClass(API + "client.TrinketRendererRegistry");
-      if (registry == null || stack == null || stack.isEmpty()) {
-        return false;
-      }
-      Object optional = registry.getMethod("getRenderer", Item.class)
-          .invoke(null, stack.getItem());
-      return optional instanceof Optional<?> found && found.isPresent();
-    } catch (Throwable throwable) {
-      return false;
-    }
+    return TrinketsRuntimeIntegration.slotReference(curiosSlot, index, entity, stack);
   }
 
   /** A complete Trinkets {@code group/slot} path is mapped onto a Curios identifier. */
