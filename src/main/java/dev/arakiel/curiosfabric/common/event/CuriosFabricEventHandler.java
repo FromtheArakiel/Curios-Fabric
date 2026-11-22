@@ -228,6 +228,11 @@ public class CuriosFabricEventHandler {
     }
   }
 
+  /** Re-syncs a player immediately before opening a menu that contains dynamic curio slots. */
+  public static boolean syncBeforeOpen(ServerPlayer player) {
+    return syncPlayer(player);
+  }
+
   /** Runs {@link #syncPlayer(ServerPlayer)} on the next server tick. */
   private static void deferSync(ServerPlayer player) {
     net.minecraft.server.MinecraftServer server = player.getServer();
@@ -446,6 +451,9 @@ public class CuriosFabricEventHandler {
   private static InteractionResultHolder<ItemStack> curioRightClick(Player player, Level level,
                                                                     InteractionHand hand) {
     ItemStack stack = player.getItemInHand(hand);
+    if (CuriosFabricConfig.isRightClickEquipBlocked(stack)) {
+      return InteractionResultHolder.pass(stack);
+    }
     Optional<ICurio> possibleCurio = CuriosApi.getCurio(stack);
 
     if (possibleCurio.isEmpty()) {

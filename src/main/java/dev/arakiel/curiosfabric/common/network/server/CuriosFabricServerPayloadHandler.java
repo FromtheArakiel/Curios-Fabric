@@ -23,6 +23,7 @@ import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainer;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainerProvider;
+import dev.arakiel.curiosfabric.common.event.CuriosFabricEventHandler;
 import dev.arakiel.curiosfabric.common.inventory.InventoryOperationPolicy;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.client.CPacketDestroy;
@@ -106,11 +107,15 @@ public class CuriosFabricServerPayloadHandler {
     if (player instanceof ServerPlayer serverPlayer) {
       ItemStack stack = player.isCreative() ? data.carried() : player.containerMenu.getCarried();
       player.containerMenu.setCarried(ItemStack.EMPTY);
-      player.openMenu(new CuriosContainerProvider());
-
-      if (!stack.isEmpty()) {
-        player.containerMenu.setCarried(stack);
-        NetworkHandler.sendToPlayer(serverPlayer, new SPacketGrabbedItem(stack));
+      // A client-side respawn (for example by a skin refresh mod) can replace LocalPlayer
+      // without replacing ServerPlayer or firing AFTER_RESPAWN. Re-sync before opening so the
+      // client builds the menu from the same dynamic slot set as the server.
+      if (CuriosFabricEventHandler.syncBeforeOpen(serverPlayer)) {
+        player.openMenu(new CuriosContainerProvider());
+        if (!stack.isEmpty()) {
+          player.containerMenu.setCarried(stack);
+          NetworkHandler.sendToPlayer(serverPlayer, new SPacketGrabbedItem(stack));
+        }
       }
     }
   }

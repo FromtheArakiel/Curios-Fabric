@@ -31,17 +31,17 @@ import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 import dev.emi.trinkets.api.SlotGroup;
 import dev.emi.trinkets.api.SlotType;
 import dev.emi.trinkets.api.TrinketEnums;
+import dev.emi.trinkets.api.TrinketComponent;
 
 /**
  * Presents this mod's accessory data through Trinkets' interfaces.
  *
  * <p>Mods that were written for Trinkets keep asking {@code TrinketsApi} what is equipped, how many
  * of an item are worn and whether some stack is worn. Those questions are answered from our
- * inventory. The slot structure itself is reported as empty: Trinkets builds its own inventory
- * screen slots from {@code getGroups()} and {@code getInventory()} together, and reporting only one
- * of them as empty makes Trinkets throw while a player is being placed into the world, because it
- * looks each inventory group name up in the group map and dereferences the missing result. Both
- * maps are therefore deliberately empty and have to stay consistent with each other.</p>
+ * inventory. The slot structure is exposed as a consistent synthetic view: Trinkets builds its
+ * own inventory screen slots from {@code getGroups()} and {@code getInventory()} together, so both
+ * maps are generated from the same Curios slot definitions. The actual screen remains disabled by
+ * the bridge mixins.</p>
  */
 public final class TrinketsApiFacade implements ForeignApiFacade {
 
@@ -67,9 +67,13 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
 
   private static Object component(ICuriosItemHandler ours) {
     LivingEntity entity = ours.getWearer();
-    return TrinketsAsm.proxy(new String[]{API + "TrinketComponent"},
+    Object[] component = new Object[1];
+    Object proxy = TrinketsAsm.proxy(new String[]{API + "TrinketComponent"},
         (name, returnType, parameters, args) -> switch (name) {
           case "getEntity" -> entity;
+          case "getGroups" -> groupView(entity);
+          case "getInventory" -> TrinketsRuntimeIntegration.inventoryView(
+              ours, (TrinketComponent) component[0]);
           case "isEquipped" -> isEquipped(ours, args);
           case "getEquipped", "getAllEquipped" -> equipped(ours, entity, filterOf(args));
           case "getModifiers" -> trinketModifiers(ours);
@@ -93,11 +97,6 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
             ours.clearCachedSlotModifiers();
             yield null;
           }
-          // Deliberately empty and deliberately consistent with the empty getGroups() above.
-          // Trinkets' PlayerScreenHandlerMixin walks this map and looks every group name up in the
-          // group map; a non-empty inventory paired with an empty group map is a null dereference
-          // on the player join path, which aborts the join entirely.
-          case "getInventory" -> new LinkedHashMap<String, Map<String, Object>>();
           case "forEach" -> {
             forEach(ours, entity, args);
             yield null;
@@ -106,6 +105,18 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
           case "update" -> null;
           default -> ForeignProxy.defaultValue(returnType);
         });
+    component[0] = proxy;
+    return proxy;
+  }
+
+  private static Map<String, SlotGroup> groupView(LivingEntity entity) {
+    Map<String, SlotGroup> result = new LinkedHashMap<>();
+    entitySlots(entity).forEach((group, value) -> {
+      if (value instanceof SlotGroup slotGroup) {
+        result.put(group, slotGroup);
+      }
+    });
+    return result;
   }
 
   /** Builds the Trinkets slot-group view from Curios' entity slot registry. */

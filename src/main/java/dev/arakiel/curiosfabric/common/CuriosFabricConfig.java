@@ -6,6 +6,8 @@ import dev.arakiel.gemini.config.ConfigHandle;
 import dev.arakiel.gemini.config.GeminiConfig;
 import dev.arakiel.gemini.config.Range;
 import java.util.List;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.ItemStack;
 
 /** Gemini-backed common and server configuration. */
 public final class CuriosFabricConfig {
@@ -50,11 +52,29 @@ public final class CuriosFabricConfig {
     @ConfigEntry(value = "max_slots_per_page")
     @Range(min = 1, max = 48)
     public int maxSlotsPerPage = 24;
+
+    @ConfigEntry(
+        value = "right_click_equip_blacklist",
+        comment = "Full item registry names that must not auto-equip into a curio slot on right-click.")
+    public List<String> rightClickEquipBlacklist = List.of();
   }
 
   public enum KeepCurios {
     ON,
     DEFAULT,
     OFF
+  }
+
+  public static boolean isRightClickEquipBlocked(ItemStack stack) {
+    return SERVER != null && isRightClickEquipBlocked(
+        stack, SERVER.value().rightClickEquipBlacklist);
+  }
+
+  static boolean isRightClickEquipBlocked(ItemStack stack, List<String> blacklist) {
+    if (stack == null || stack.isEmpty()) {
+      return false;
+    }
+    var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+    return id != null && blacklist != null && blacklist.contains(id.toString());
   }
 }
