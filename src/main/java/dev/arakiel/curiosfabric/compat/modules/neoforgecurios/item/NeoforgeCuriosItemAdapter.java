@@ -6,6 +6,8 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -24,6 +26,7 @@ import dev.arakiel.curiosfabric.api.SlotAttribute;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.api.NeoforgeCuriosApiFacade;
+import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.asm.NeoforgeCuriosAsm;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 
@@ -39,6 +42,9 @@ import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 public class NeoforgeCuriosItemAdapter implements ICurioItem {
 
   private static final String FOREIGN = "top.theillusivec4.curios.api.type.capability.ICurioItem";
+  private static final Map<Item, Optional<NeoforgeCuriosItemAdapter>> CACHE =
+      new ConcurrentHashMap<>();
+  private static final Map<String, Boolean> OVERRIDES = new ConcurrentHashMap<>();
 
   private final Item item;
 
@@ -46,22 +52,26 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
     this.item = item;
   }
 
+  public static Optional<NeoforgeCuriosItemAdapter> of(Item item) {
+    return CACHE.computeIfAbsent(item, key -> {
+      Class<?> type = CompatTargets.loadClass(FOREIGN);
+      return type != null && type.isInstance(key)
+          ? Optional.of(new NeoforgeCuriosItemAdapter(key))
+          : Optional.empty();
+    });
+  }
+
   /** {@code true} when the item implements the Neoforge edition's curio interface. */
   public static boolean isNeoforgeCuriosItemItem(Item item) {
-    Class<?> type = CompatTargets.loadClass(FOREIGN);
-    return type != null && type.isInstance(item);
+    return of(item).isPresent();
   }
 
   private Object call(String name, int parameterCount, Object... args) {
 
     try {
-
-      for (Method method : this.item.getClass().getMethods()) {
-
-        if (method.getName().equals(name) && accepts(method, parameterCount, args)) {
-          return method.invoke(this.item, args);
-        }
-      }
+      return NeoforgeCuriosAsm
+          .invoker(this.item.getClass(), name, args)
+          .invoke(this.item, args);
     } catch (Throwable throwable) {
       CuriosFabricConstants.LOG.debug("Bridged curio hook {} failed for {}",
           name, this.item, throwable);
@@ -69,60 +79,17 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
     return null;
   }
 
-  private static boolean accepts(Method method, int parameterCount, Object[] args) {
-    if (method.getParameterCount() != parameterCount) {
-      return false;
-    }
-    Class<?>[] types = method.getParameterTypes();
-    for (int index = 0; index < types.length; index++) {
-      Object argument = args[index];
-      if (argument == null) {
-        if (types[index].isPrimitive()) {
-          return false;
-        }
-      } else if (!box(types[index]).isInstance(argument)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private static Class<?> box(Class<?> type) {
-    if (!type.isPrimitive()) {
-      return type;
-    }
-    if (type == boolean.class) {
-      return Boolean.class;
-    }
-    if (type == byte.class) {
-      return Byte.class;
-    }
-    if (type == short.class) {
-      return Short.class;
-    }
-    if (type == int.class) {
-      return Integer.class;
-    }
-    if (type == long.class) {
-      return Long.class;
-    }
-    if (type == float.class) {
-      return Float.class;
-    }
-    if (type == double.class) {
-      return Double.class;
-    }
-    return Character.class;
-  }
-
   private boolean overrides(String name, int parameterCount) {
-    for (Method method : this.item.getClass().getMethods()) {
-      if (method.getName().equals(name) && method.getParameterCount() == parameterCount
-          && !method.getDeclaringClass().isInterface()) {
-        return true;
+    String key = this.item.getClass().getName() + "#" + name + "#" + parameterCount;
+    return OVERRIDES.computeIfAbsent(key, ignored -> {
+      for (Method method : this.item.getClass().getMethods()) {
+        if (method.getName().equals(name) && method.getParameterCount() == parameterCount
+            && !method.getDeclaringClass().isInterface()) {
+          return true;
+        }
       }
-    }
-    return false;
+      return false;
+    });
   }
 
   private Object context(SlotContext slotContext) {
@@ -272,8 +239,10 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
       return null;
     }
     try {
-      return (String) attribute.getClass().getMethod("getIdentifier").invoke(attribute);
-    } catch (ReflectiveOperationException exception) {
+      return (String) NeoforgeCuriosAsm
+          .invoker(attribute.getClass(), "getIdentifier", new Object[0])
+          .invoke(attribute, new Object[0]);
+    } catch (Throwable exception) {
       CuriosFabricConstants.LOG.debug("Could not read NeoForge Curios slot modifier", exception);
       return null;
     }

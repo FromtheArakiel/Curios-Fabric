@@ -1,8 +1,9 @@
 package dev.arakiel.curiosfabric.compat.modules.trinkets.item;
 
-import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimap;
 import net.minecraft.core.Holder;
@@ -19,6 +20,7 @@ import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.TrinketsCompat;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.asm.TrinketsAsm;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.api.TrinketsApiFacade;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 import net.minecraft.sounds.SoundEvent;
@@ -34,6 +36,8 @@ import net.minecraft.sounds.SoundEvent;
  */
 public class TrinketItemAdapter implements ICurioItem {
 
+  private static final Map<Item, Optional<TrinketItemAdapter>> CACHE =
+      new ConcurrentHashMap<>();
   private static final String TRINKET = "dev.emi.trinkets.api.Trinket";
   private static final String TRINKET_ITEM = "dev.emi.trinkets.api.TrinketItem";
   private static final String TRINKETS_API = "dev.emi.trinkets.api.TrinketsApi";
@@ -46,9 +50,17 @@ public class TrinketItemAdapter implements ICurioItem {
     this.delegate = trinket(item);
   }
 
+  /** Returns the cached adapter, creating it once per item. */
+  public static Optional<TrinketItemAdapter> of(Item item) {
+    return CACHE.computeIfAbsent(item, key -> {
+      TrinketItemAdapter adapter = new TrinketItemAdapter(key);
+      return adapter.delegate == null ? Optional.empty() : Optional.of(adapter);
+    });
+  }
+
   /** {@code true} when Trinkets has a non-default behavior registered for the item. */
   public static boolean isTrinket(Item item) {
-    return trinket(item) != null;
+    return of(item).isPresent();
   }
 
   private static Object trinket(Item item) {
@@ -77,63 +89,12 @@ public class TrinketItemAdapter implements ICurioItem {
     try {
 
       Object target = this.delegate == null ? this.item : this.delegate;
-      for (Method method : target.getClass().getMethods()) {
-
-        if (method.getName().equals(name) && accepts(method, args)) {
-          return method.invoke(target, args);
-        }
-      }
+      return TrinketsAsm.invoker(target.getClass(), name, args).invoke(target, args);
     } catch (Throwable throwable) {
       CuriosFabricConstants.LOG.debug("Bridged Trinkets hook {} failed for {}", name, this.item,
           throwable);
     }
     return null;
-  }
-
-  private static boolean accepts(Method method, Object[] args) {
-    if (method.getParameterCount() != args.length) {
-      return false;
-    }
-    Class<?>[] types = method.getParameterTypes();
-    for (int index = 0; index < types.length; index++) {
-      Object argument = args[index];
-      if (argument == null) {
-        if (types[index].isPrimitive()) {
-          return false;
-        }
-      } else if (!box(types[index]).isInstance(argument)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private static Class<?> box(Class<?> type) {
-    if (!type.isPrimitive()) {
-      return type;
-    }
-    if (type == boolean.class) {
-      return Boolean.class;
-    }
-    if (type == byte.class) {
-      return Byte.class;
-    }
-    if (type == short.class) {
-      return Short.class;
-    }
-    if (type == int.class) {
-      return Integer.class;
-    }
-    if (type == long.class) {
-      return Long.class;
-    }
-    if (type == float.class) {
-      return Float.class;
-    }
-    if (type == double.class) {
-      return Double.class;
-    }
-    return Character.class;
   }
 
   @Override

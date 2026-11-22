@@ -79,9 +79,9 @@ public final class NeoforgeCuriosCompat {
       }
     }
     assignments.forEach((item, slots) -> CuriosApi.registerCurio(item,
-        NeoforgeCuriosItemAdapter.isNeoforgeCuriosItemItem(item)
-            ? new NeoforgeCuriosItemAdapter(item)
-            : new NeoforgeCuriosItem(slots)));
+        NeoforgeCuriosItemAdapter.of(item)
+            .<ICurioItem>map(adapter -> adapter)
+            .orElse(new NeoforgeCuriosItem(slots))));
   }
 
   /** {@code true} when the stack is assigned to the slot through the neoforge item tag. */

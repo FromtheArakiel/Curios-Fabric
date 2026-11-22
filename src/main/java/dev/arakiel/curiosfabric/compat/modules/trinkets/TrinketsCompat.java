@@ -118,9 +118,9 @@ public final class TrinketsCompat {
       for (TrinketSlot slot : discovered.values()) {
         for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tagFor(slot.path))) {
           CuriosApi.registerCurio(holder.value(),
-              TrinketItemAdapter.isTrinket(holder.value())
-                  ? new TrinketItemAdapter(holder.value())
-                  : TrinketCurio.INSTANCE);
+              TrinketItemAdapter.of(holder.value())
+                  .<ICurioItem>map(adapter -> adapter)
+                  .orElse(TrinketCurio.INSTANCE));
         }
       }
     }
@@ -188,7 +188,7 @@ public final class TrinketsCompat {
     if (!isLoaded() || stack.isEmpty()) {
       return false;
     }
-    if (TrinketItemAdapter.isTrinket(stack.getItem())) {
+    if (TrinketItemAdapter.of(stack.getItem()).isPresent()) {
       return true;
     }
     ensureSlots(client);

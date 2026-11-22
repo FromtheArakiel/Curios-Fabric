@@ -176,9 +176,9 @@ public final class TrinketsBridge implements CompatibilityBridge {
   private static final class ItemBehavior implements ItemBehaviorContributor {
     @Override
     public Optional<ItemBehaviorResolution> resolve(ItemStack stack) {
-      if (TrinketItemAdapter.isTrinket(stack.getItem())) {
+      if (TrinketItemAdapter.of(stack.getItem()).isPresent()) {
         return Optional.of(new ItemBehaviorResolution(
-            new TrinketItemAdapter(stack.getItem()), true));
+            TrinketItemAdapter.of(stack.getItem()).orElseThrow(), true));
       }
       return TrinketsCompat.lookup(stack)
           .map(behavior -> new ItemBehaviorResolution(behavior, false));

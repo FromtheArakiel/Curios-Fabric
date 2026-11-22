@@ -1,10 +1,7 @@
 package dev.arakiel.curiosfabric.compat.modules.neoforgecurios.api;
 
 import com.google.common.collect.Multimap;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -38,6 +35,7 @@ import dev.arakiel.curiosfabric.compat.contribution.api.ForeignApiFacade;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeContext;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeInvalidationReason;
 import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.duck.NeoforgeCuriosSlotContextDuck;
+import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.asm.NeoforgeCuriosAsm;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 
@@ -67,6 +65,13 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   private static final Map<Object, ICurioStacksHandler> STACKS_HANDLER_DELEGATES =
       Collections.synchronizedMap(new WeakHashMap<>());
   private static volatile Object foreignItemCapability;
+  private static volatile Class<?> foreignContextClass;
+  private static volatile NeoforgeCuriosAsm.ConstructorInvoker foreignContextConstructor;
+  private static volatile Class<?> foreignSlotResultClass;
+  private static volatile NeoforgeCuriosAsm.ConstructorInvoker foreignSlotResultConstructor;
+  private static volatile Class<?> rendererRegistryClass;
+  private static volatile Class<?> dropRuleClass;
+  private static volatile Map<String, Object> dropRuleValues;
   private static volatile boolean foreignItemCapabilityUnavailable;
 
   public NeoforgeCuriosApiFacade() {
@@ -90,7 +95,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   }
 
   private static Object inventory(ICuriosItemHandler ours) {
-    return ForeignProxy.create(
+    return NeoforgeCuriosAsm.proxy(
         new String[]{API + "type.capability.ICuriosItemHandler", ITEM_HANDLER},
         (name, returnType, parameters, args) -> switch (name) {
           case "getCurios" -> {
@@ -233,7 +238,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   }
 
   private static Object stacksHandler(ICurioStacksHandler ours) {
-    Object proxy = ForeignProxy.create(new String[]{API + "type.inventory.ICurioStacksHandler"},
+    Object proxy = NeoforgeCuriosAsm.proxy(new String[]{API + "type.inventory.ICurioStacksHandler"},
         (name, returnType, parameters, args) -> switch (name) {
           case "getStacks" -> dynamicStackHandler(ours.getStacks());
           case "getCosmeticStacks" -> dynamicStackHandler(ours.getCosmeticStacks());
@@ -312,7 +317,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   }
 
   private static Object dynamicStackHandler(IDynamicStackHandler ours) {
-    return ForeignProxy.create(
+    return NeoforgeCuriosAsm.proxy(
         new String[]{API + "type.inventory.IDynamicStackHandler", ITEM_HANDLER},
         (name, returnType, parameters, args) -> switch (name) {
           case "getSlots" -> ours.getSlots();
@@ -352,7 +357,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   }
 
   private static Object itemHandler(dev.arakiel.curiosfabric.api.type.inventory.IItemHandlerModifiable ours) {
-    return ForeignProxy.create(new String[]{ITEM_HANDLER},
+    return NeoforgeCuriosAsm.proxy(new String[]{ITEM_HANDLER},
         (name, returnType, parameters, args) -> switch (name) {
           case "getSlots" -> ours.getSlots();
           case "getStackInSlot" -> ours.getStackInSlot((Integer) args[0]);
@@ -381,7 +386,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
     if (ours == null) {
       return null;
     }
-    return ForeignProxy.create(new String[]{API + "type.capability.ICurio"},
+    return NeoforgeCuriosAsm.proxy(new String[]{API + "type.capability.ICurio"},
         (name, returnType, parameters, args) -> switch (name) {
           case "getStack" -> ours.getStack();
           case "curioTick" -> {
@@ -442,7 +447,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
 
   /** A Neoforge {@code ISlotType} view of one of our slot types. */
   public static Object slotType(ISlotType ours) {
-    return ForeignProxy.create(new String[]{API + "type.ISlotType"},
+    return NeoforgeCuriosAsm.proxy(new String[]{API + "type.ISlotType"},
         (name, returnType, parameters, args) -> switch (name) {
           case "getIdentifier" -> ours.getIdentifier();
           case "getIcon" -> ours.getIcon();
@@ -457,8 +462,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
           case "isLocked" -> ours.isLocked();
           case "getPriority" -> ours.getPriority();
           case "isVisible" -> ours.isVisible();
-          case "compareTo" -> ours.getIdentifier().compareTo(
-              String.valueOf(ForeignProxy.read(args[0], "getIdentifier", "")));
+          case "compareTo" -> ours.getIdentifier().compareTo(readIdentifier(args[0]));
           default -> ForeignProxy.defaultValue(returnType);
         });
   }
@@ -506,6 +510,17 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
     return result;
   }
 
+  private static String readIdentifier(Object foreign) {
+    try {
+      Object value = NeoforgeCuriosAsm
+          .invoker(foreign.getClass(), "getIdentifier", new Object[0])
+          .invoke(foreign, new Object[0]);
+      return String.valueOf(value);
+    } catch (Throwable throwable) {
+      return "";
+    }
+  }
+
   @SuppressWarnings("unchecked")
   private static List<Component> components(Object value) {
     return value instanceof List<?> list ? (List<Component>) list : new java.util.ArrayList<>();
@@ -516,8 +531,9 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
       Class<?> type = CompatTargets
           .loadClass(API + "type.capability.ICurio$SoundInfo");
       return type == null ? null
-          : type.getConstructor(SoundEvent.class, float.class, float.class)
-              .newInstance(ours.soundEvent(), ours.volume(), ours.pitch());
+          : NeoforgeCuriosAsm.constructor(
+              type, new Class<?>[]{SoundEvent.class, float.class, float.class})
+              .create(new Object[]{ours.soundEvent(), ours.volume(), ours.pitch()});
     } catch (Throwable throwable) {
       CuriosFabricConstants.LOG.debug("Failed to build a bridged curio sound", throwable);
       return null;
@@ -541,13 +557,9 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
         capability = item.get(null);
         foreignItemCapability = capability;
       }
-      for (Method method : stack.getClass().getMethods()) {
-        Class<?>[] parameters = method.getParameterTypes();
-        if (method.getName().equals("getCapability") && parameters.length == 2
-            && parameters[0].isInstance(capability)) {
-          return method.invoke(stack, capability, null);
-        }
-      }
+      return NeoforgeCuriosAsm
+          .invoker(stack.getClass(), "getCapability", new Object[]{capability, null})
+          .invoke(stack, new Object[]{capability, null});
     } catch (Throwable throwable) {
       CuriosFabricConstants.LOG.debug("Could not read the Neoforge curio item capability",
           throwable);
@@ -576,8 +588,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   public static boolean renderForeign(Object[] args) {
 
     try {
-      Class<?> registry = CompatTargets
-          .loadClass(API + "client.CuriosRendererRegistry");
+      Class<?> registry = rendererRegistry();
 
       if (registry == null || args.length == 0) {
         return false;
@@ -605,21 +616,11 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
         return false;
       }
 
-      Throwable lastFailure = null;
-      for (Method method : renderer.getClass().getMethods()) {
-        if (method.getName().equals("render") && method.getParameterCount() == args.length) {
-          try {
-            method.setAccessible(true);
-            method.invoke(renderer, call);
-            return true;
-          } catch (InvocationTargetException exception) {
-            lastFailure = exception.getCause() == null ? exception : exception.getCause();
-          } catch (Throwable throwable) {
-            lastFailure = throwable;
-          }
-        }
-      }
-      if (lastFailure != null) {
+      try {
+        NeoforgeCuriosAsm.invoker(renderer.getClass(), "render", call)
+            .invoke(renderer, call);
+        return true;
+      } catch (Throwable lastFailure) {
         CuriosFabricConstants.LOG.warn(
             "NeoForge Curios renderer failed item={} renderer={}",
             BuiltInRegistries.ITEM.getKey(item), renderer.getClass().getName(), lastFailure);
@@ -632,8 +633,7 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
 
   /** {@code true} when the Neoforge registry has a renderer for this item. */
   public static boolean hasRenderer(ItemStack stack) {
-    Class<?> registry = CompatTargets
-        .loadClass(API + "client.CuriosRendererRegistry");
+    Class<?> registry = rendererRegistry();
     return registry != null && stack != null && !stack.isEmpty()
         && foreignRenderer(registry, stack.getItem()) != null;
   }
@@ -678,15 +678,14 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   private static Object slotResult(SlotResult ours) {
 
     try {
-      Class<?> contextClass = CompatTargets
-          .loadClass(API + "SlotContext");
-      Class<?> resultClass = CompatTargets.loadClass(API + "SlotResult");
+      Class<?> contextClass = foreignContextClass();
+      Class<?> resultClass = foreignSlotResultClass();
 
       if (contextClass == null || resultClass == null) {
         return null;
       }
-      return resultClass.getConstructor(contextClass, ItemStack.class)
-          .newInstance(foreignContext(ours.slotContext()), ours.stack());
+      return foreignSlotResultConstructor()
+          .create(new Object[]{foreignContext(ours.slotContext()), ours.stack()});
     } catch (Throwable throwable) {
       CuriosFabricConstants.LOG.debug("Failed to build a bridged SlotResult", throwable);
       return null;
@@ -697,16 +696,12 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   public static Object foreignContext(SlotContext ours) {
 
     try {
-      Class<?> contextClass = CompatTargets
-          .loadClass(API + "SlotContext");
-
+      Class<?> contextClass = foreignContextClass();
       if (contextClass == null || ours == null) {
         return null;
       }
-      Constructor<?> constructor = contextClass.getConstructor(String.class, LivingEntity.class,
-          int.class, boolean.class, boolean.class);
-      return constructor.newInstance(ours.identifier(), ours.entity(), ours.index(),
-          ours.cosmetic(), ours.visible());
+      return foreignContextConstructor().create(new Object[]{
+          ours.identifier(), ours.entity(), ours.index(), ours.cosmetic(), ours.visible()});
     } catch (Throwable throwable) {
       return null;
     }
@@ -716,10 +711,78 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
     return foreign == null ? Optional.empty() : Optional.of(foreign);
   }
 
+  private static Class<?> rendererRegistry() {
+    Class<?> cached = rendererRegistryClass;
+    if (cached == null) {
+      cached = CompatTargets.loadClass(API + "client.CuriosRendererRegistry");
+      rendererRegistryClass = cached;
+    }
+    return cached;
+  }
+
+  private static Class<?> foreignContextClass() {
+    Class<?> cached = foreignContextClass;
+    if (cached == null) {
+      cached = CompatTargets.loadClass(API + "SlotContext");
+      foreignContextClass = cached;
+    }
+    return cached;
+  }
+
+  private static NeoforgeCuriosAsm.ConstructorInvoker foreignContextConstructor() {
+    NeoforgeCuriosAsm.ConstructorInvoker cached = foreignContextConstructor;
+    if (cached == null) {
+      Class<?> type = foreignContextClass();
+      cached = type == null
+          ? (args -> null)
+          : NeoforgeCuriosAsm.constructor(type, new Class<?>[]{
+              String.class, LivingEntity.class, int.class, boolean.class, boolean.class});
+      foreignContextConstructor = cached;
+    }
+    return cached;
+  }
+
+  private static Class<?> foreignSlotResultClass() {
+    Class<?> cached = foreignSlotResultClass;
+    if (cached == null) {
+      cached = CompatTargets.loadClass(API + "SlotResult");
+      foreignSlotResultClass = cached;
+    }
+    return cached;
+  }
+
+  private static NeoforgeCuriosAsm.ConstructorInvoker foreignSlotResultConstructor() {
+    NeoforgeCuriosAsm.ConstructorInvoker cached = foreignSlotResultConstructor;
+    if (cached == null) {
+      Class<?> context = foreignContextClass();
+      Class<?> result = foreignSlotResultClass();
+      cached = context == null || result == null
+          ? (args -> null)
+          : NeoforgeCuriosAsm.constructor(result, new Class<?>[]{context, ItemStack.class});
+      foreignSlotResultConstructor = cached;
+    }
+    return cached;
+  }
+
   private static Object dropRule(ICurio.DropRule ours) {
-    Class<?> type = CompatTargets
-        .loadClass(API + "type.capability.ICurio$DropRule");
-    return ForeignProxy.enumConstant(type, ours.name(), null);
+    Class<?> type = dropRuleClass;
+    if (type == null) {
+      type = CompatTargets.loadClass(API + "type.capability.ICurio$DropRule");
+      dropRuleClass = type;
+    }
+    if (type == null) {
+      return null;
+    }
+    Map<String, Object> values = dropRuleValues;
+    if (values == null) {
+      Map<String, Object> discovered = new LinkedHashMap<>();
+      for (Object constant : type.getEnumConstants()) {
+        discovered.put(((Enum<?>) constant).name(), constant);
+      }
+      values = Map.copyOf(discovered);
+      dropRuleValues = values;
+    }
+    return values.get(ours.name());
   }
 
   private static AttributeModifier.Operation operation(Object foreign) {

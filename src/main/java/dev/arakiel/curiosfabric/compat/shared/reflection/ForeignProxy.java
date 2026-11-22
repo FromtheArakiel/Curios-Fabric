@@ -1,24 +1,18 @@
 package dev.arakiel.curiosfabric.compat.shared.reflection;
 
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-import dev.arakiel.curiosfabric.CuriosFabricConstants;
-import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 
 /**
  * Helpers for presenting this mod's objects as another accessory implementation's interfaces.
  *
- * <p>The adapters are {@link Proxy dynamic proxies} built from interface names, so this mod never
- * has to link against (or even compile against) Neoforge or Trinkets. Every single call is routed
- * through {@link Invoker}, and anything that is not implemented falls back to a harmless default
- * instead of throwing.</p>
+ * <p>The bridge-specific ASM generators use {@link Invoker} as their dispatcher contract. This
+ * class only retains the low-frequency default-value and no-argument accessor helpers.</p>
  */
 public final class ForeignProxy {
 
@@ -30,45 +24,6 @@ public final class ForeignProxy {
   public interface Invoker {
     Object invoke(String name, Class<?> returnType, Class<?>[] parameterTypes, Object[] args)
         throws Throwable;
-  }
-
-  /**
-   * Builds a proxy implementing the named interfaces.
-   *
-   * @param interfaceNames Fully qualified interface names
-   * @param invoker        The dispatcher
-   * @return The proxy, or {@code null} when an interface is missing
-   */
-  public static Object create(String[] interfaceNames, Invoker invoker) {
-    Class<?>[] classes = new Class<?>[interfaceNames.length];
-
-    for (int i = 0; i < interfaceNames.length; i++) {
-      classes[i] = CompatTargets.loadClass(interfaceNames[i]);
-
-      if (classes[i] == null) {
-        return null;
-      }
-    }
-    ClassLoader loader = ForeignProxy.class.getClassLoader();
-    InvocationHandler handler = (proxy, method, args) -> {
-
-      if (method.getDeclaringClass() == Object.class) {
-        return switch (method.getName()) {
-          case "toString" -> "curiosfabric bridge";
-          case "hashCode" -> System.identityHashCode(proxy);
-          default -> proxy == args[0];
-        };
-      }
-
-      try {
-        return invoker.invoke(method.getName(), method.getReturnType(),
-            method.getParameterTypes(), args == null ? new Object[0] : args);
-      } catch (Throwable throwable) {
-        CuriosFabricConstants.LOG.debug("Bridged call {} failed", method.getName(), throwable);
-        return defaultValue(method.getReturnType());
-      }
-    };
-    return Proxy.newProxyInstance(loader, classes, handler);
   }
 
   /** A type appropriate neutral value for an unimplemented bridged method. */

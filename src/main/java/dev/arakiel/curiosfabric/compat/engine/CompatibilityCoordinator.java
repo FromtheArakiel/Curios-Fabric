@@ -326,6 +326,7 @@ public final class CompatibilityCoordinator {
   }
 
   public void invalidate(BridgeInvalidationReason reason) {
+    ItemBehaviorArbiter.clearCache();
     for (CompatibilityBridge bridge : registry.all()) {
       try {
         bridge.invalidate(reason);

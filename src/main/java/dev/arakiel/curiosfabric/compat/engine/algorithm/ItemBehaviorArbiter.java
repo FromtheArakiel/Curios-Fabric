@@ -7,15 +7,33 @@ import dev.arakiel.curiosfabric.compat.core.contract.CompatibilityBridge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /** Chooses exactly one deterministic foreign item behavior adapter. */
 public final class ItemBehaviorArbiter {
 
+  private static final Map<Item, Optional<ICurioItem>> CACHE = new ConcurrentHashMap<>();
+
   private ItemBehaviorArbiter() {
   }
 
   public static Optional<ICurioItem> resolve(
+      ItemStack stack, List<CompatibilityBridge> bridges) {
+    if (stack == null) {
+      return Optional.empty();
+    }
+    return CACHE.computeIfAbsent(
+        stack.getItem(), ignored -> resolveUncached(stack, bridges));
+  }
+
+  public static void clearCache() {
+    CACHE.clear();
+  }
+
+  private static Optional<ICurioItem> resolveUncached(
       ItemStack stack, List<CompatibilityBridge> bridges) {
     List<Resolution> matches = new ArrayList<>();
     for (CompatibilityBridge bridge : bridges) {

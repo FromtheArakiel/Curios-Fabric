@@ -1,10 +1,10 @@
 package dev.arakiel.curiosfabric.compat.modules.neoforgecurios.item;
 
-import java.lang.reflect.Method;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
+import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.asm.NeoforgeCuriosAsm;
 import dev.arakiel.curiosfabric.compat.shared.detection.CompatTargets;
 
 /**
@@ -22,7 +22,7 @@ public final class NeoforgeEffectHook {
 
   private static final String COMMON_HOOKS = "net.neoforged.neoforge.common.CommonHooks";
 
-  private static volatile Method canBeApplied;
+  private static volatile NeoforgeCuriosAsm.Invoker canBeApplied;
   private static volatile boolean unavailable;
 
   private NeoforgeEffectHook() {
@@ -42,19 +42,19 @@ public final class NeoforgeEffectHook {
     }
 
     try {
-      Method method = canBeApplied;
-
-      if (method == null) {
+      Object[] args = {entity, effectInstance, source};
+      NeoforgeCuriosAsm.Invoker invoker = canBeApplied;
+      if (invoker == null) {
         Class<?> hooks = CompatTargets.loadClass(COMMON_HOOKS);
 
         if (hooks == null) {
           return null;
         }
-        method = hooks.getMethod("canMobEffectBeApplied", LivingEntity.class,
-            MobEffectInstance.class, Entity.class);
-        canBeApplied = method;
+        invoker = NeoforgeCuriosAsm.staticInvoker(
+            hooks, "canMobEffectBeApplied", args);
+        canBeApplied = invoker;
       }
-      Object result = method.invoke(null, entity, effectInstance, source);
+      Object result = invoker.invoke(null, args);
       return result instanceof Boolean value ? value : null;
     } catch (Throwable throwable) {
       unavailable = true;

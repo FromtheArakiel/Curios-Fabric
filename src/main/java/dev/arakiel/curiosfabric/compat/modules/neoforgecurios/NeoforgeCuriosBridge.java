@@ -203,9 +203,11 @@ public final class NeoforgeCuriosBridge implements CompatibilityBridge {
   private static final class ItemBehavior implements ItemBehaviorContributor {
     @Override
     public Optional<ItemBehaviorResolution> resolve(ItemStack stack) {
-      if (NeoforgeCuriosItemAdapter.isNeoforgeCuriosItemItem(stack.getItem())) {
+      Optional<NeoforgeCuriosItemAdapter> adapter =
+          NeoforgeCuriosItemAdapter.of(stack.getItem());
+      if (adapter.isPresent()) {
         return Optional.of(new ItemBehaviorResolution(
-            new NeoforgeCuriosItemAdapter(stack.getItem()), true));
+            adapter.orElseThrow(), true));
       }
       return NeoforgeCuriosCompat.lookup(stack)
           .map(behavior -> new ItemBehaviorResolution(behavior, false));

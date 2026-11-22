@@ -25,6 +25,7 @@ import dev.arakiel.curiosfabric.compat.contribution.api.ForeignApiFacade;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeContext;
 import dev.arakiel.curiosfabric.compat.core.contract.BridgeInvalidationReason;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.TrinketsCompat;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.asm.TrinketsAsm;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.runtime.TrinketsRuntimeIntegration;
 import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 import dev.emi.trinkets.api.SlotGroup;
@@ -66,7 +67,7 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
 
   private static Object component(ICuriosItemHandler ours) {
     LivingEntity entity = ours.getWearer();
-    return ForeignProxy.create(new String[]{API + "TrinketComponent"},
+    return TrinketsAsm.proxy(new String[]{API + "TrinketComponent"},
         (name, returnType, parameters, args) -> switch (name) {
           case "getEntity" -> entity;
           case "isEquipped" -> isEquipped(ours, args);
