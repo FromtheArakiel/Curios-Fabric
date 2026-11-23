@@ -1,6 +1,7 @@
 package dev.arakiel.curiosfabric.compat.modules.neoforgecurios.api;
 
 import com.google.common.collect.Multimap;
+import com.google.common.collect.LinkedHashMultimap;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashSet;
@@ -11,12 +12,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Predicate;
+import javax.annotation.Nullable;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.Tag;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.item.Item;
@@ -72,6 +76,8 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
   private static volatile Class<?> rendererRegistryClass;
   private static volatile Class<?> dropRuleClass;
   private static volatile Map<String, Object> dropRuleValues;
+  private static volatile Object foreignAttributeComponentType;
+  private static volatile boolean foreignAttributeComponentUnavailable;
   private static volatile boolean foreignItemCapabilityUnavailable;
 
   public NeoforgeCuriosApiFacade() {
@@ -636,6 +642,95 @@ public final class NeoforgeCuriosApiFacade implements ForeignApiFacade {
     Class<?> registry = rendererRegistry();
     return registry != null && stack != null && !stack.isEmpty()
         && foreignRenderer(registry, stack.getItem()) != null;
+  }
+
+  /**
+   * Reads the NeoForge edition's {@code curios:attribute_modifiers} item component.
+   *
+   * <p>The upstream runtime treats a non-empty component as authoritative and skips the item
+   * method. CuriosFabric has its own data-component id, so without this translation those item
+   * attributes disappear after crossing the bridge.</p>
+   *
+   * @return the translated component modifiers, or {@code null} when the component is absent/empty
+   */
+  @Nullable
+  public static Multimap<Holder<Attribute>, AttributeModifier> foreignAttributeModifiers(
+      SlotContext slotContext, ResourceLocation id, ItemStack stack) {
+    Object type = foreignAttributeComponentType();
+    if (type == null) {
+      return null;
+    }
+    try {
+      @SuppressWarnings("unchecked")
+      Object component = stack.get(
+          (net.minecraft.core.component.DataComponentType<Object>) type);
+      if (component == null) {
+        return null;
+      }
+      Object rawEntries = ForeignProxy.read(component, "modifiers", List.of());
+      if (!(rawEntries instanceof List<?> entries) || entries.isEmpty()) {
+        return null;
+      }
+      Multimap<Holder<Attribute>, AttributeModifier> result = LinkedHashMultimap.create();
+      for (Object entry : entries) {
+        Object slot = ForeignProxy.read(entry, "slot", null);
+        if (!slotContext.identifier().equals(slot)) {
+          continue;
+        }
+        Object rawAttribute = ForeignProxy.read(entry, "attribute", null);
+        Object modifier = ForeignProxy.read(entry, "modifier", null);
+        if (!(rawAttribute instanceof ResourceLocation attributeId)
+            || !(modifier instanceof AttributeModifier value)) {
+          continue;
+        }
+        if (attributeId.getNamespace().equals("curios")) {
+          boolean client = slotContext.entity() == null
+              || slotContext.entity().level().isClientSide();
+          if (CuriosApi.getSlot(attributeId.getPath(), client).isPresent()) {
+            CuriosApi.addSlotModifier(
+                result, attributeId.getPath(), id, value.amount(), value.operation());
+          }
+        } else {
+          BuiltInRegistries.ATTRIBUTE.getHolder(attributeId).ifPresent(attribute ->
+              result.put(attribute, new AttributeModifier(
+                  id, value.amount(), value.operation())));
+        }
+      }
+      return result;
+    } catch (Throwable throwable) {
+      CuriosFabricConstants.LOG.debug(
+          "Could not read the NeoForge Curios attribute component", throwable);
+      return null;
+    }
+  }
+
+  @Nullable
+  private static Object foreignAttributeComponentType() {
+    Object cached = foreignAttributeComponentType;
+    if (cached != null || foreignAttributeComponentUnavailable) {
+      return cached;
+    }
+    try {
+      Class<?> registry = CompatTargets.loadClass(
+          "top.theillusivec4.curios.common.CuriosRegistry");
+      if (registry == null) {
+        foreignAttributeComponentUnavailable = true;
+        return null;
+      }
+      Object supplier = registry.getField("CURIO_ATTRIBUTE_MODIFIERS").get(null);
+      Object resolved = ForeignProxy.read(supplier, "get", null);
+      if (resolved == null) {
+        foreignAttributeComponentUnavailable = true;
+        return null;
+      }
+      foreignAttributeComponentType = resolved;
+      return resolved;
+    } catch (Throwable throwable) {
+      foreignAttributeComponentUnavailable = true;
+      CuriosFabricConstants.LOG.debug(
+          "NeoForge Curios attribute component is unavailable", throwable);
+      return null;
+    }
   }
 
   /**

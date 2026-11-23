@@ -30,7 +30,6 @@ import dev.arakiel.curiosfabric.compat.modules.trinkets.runtime.TrinketsRuntimeI
 import dev.arakiel.curiosfabric.compat.shared.reflection.ForeignProxy;
 import dev.emi.trinkets.api.SlotGroup;
 import dev.emi.trinkets.api.SlotType;
-import dev.emi.trinkets.api.TrinketEnums;
 import dev.emi.trinkets.api.TrinketComponent;
 
 /**
@@ -62,7 +61,22 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
   /** The Trinkets component of the entity, or {@code null} when the entity has no curios. */
   public static Object component(LivingEntity entity) {
     ICuriosItemHandler ours = CuriosApi.getCuriosInventory(entity).orElse(null);
-    return ours == null ? null : component(ours);
+    return ours == null ? emptyComponent(entity) : component(ours);
+  }
+
+  /**
+   * Returns a consistent empty component during entity construction, before CuriosFabric has
+   * attached its inventory component. Falling through to the upstream Trinkets component here
+   * exposes Trinkets groups without matching inventory maps and crashes its PlayerScreenHandler.
+   */
+  private static Object emptyComponent(LivingEntity entity) {
+    return TrinketsAsm.proxy(new String[]{API + "TrinketComponent"},
+        (name, returnType, parameters, args) -> switch (name) {
+          case "getEntity" -> entity;
+          case "getGroups" -> Map.of();
+          case "getInventory" -> Map.of();
+          default -> ForeignProxy.defaultValue(returnType);
+        });
   }
 
   private static Object component(ICuriosItemHandler ours) {
@@ -72,8 +86,8 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
         (name, returnType, parameters, args) -> switch (name) {
           case "getEntity" -> entity;
           case "getGroups" -> groupView(entity);
-          case "getInventory" -> TrinketsRuntimeIntegration.inventoryView(
-              ours, (TrinketComponent) component[0]);
+          case "getInventory" -> inventoryView(
+              ours, (TrinketComponent) component[0], entity);
           case "isEquipped" -> isEquipped(ours, args);
           case "getEquipped", "getAllEquipped" -> equipped(ours, entity, filterOf(args));
           case "getModifiers" -> trinketModifiers(ours);
@@ -119,6 +133,17 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
     return result;
   }
 
+  private static Map<String, Map<String, dev.emi.trinkets.api.TrinketInventory>> inventoryView(
+      ICuriosItemHandler ours, TrinketComponent component, LivingEntity entity) {
+    Map<String, Map<String, dev.emi.trinkets.api.TrinketInventory>> result =
+        new LinkedHashMap<>(TrinketsRuntimeIntegration.inventoryView(ours, component));
+    // Trinkets assumes every group returned by getGroups() has a corresponding inventory entry.
+    // Keep empty groups present so its PlayerScreenHandler never dereferences a missing map.
+    groupView(entity).keySet().forEach(group ->
+        result.computeIfAbsent(group, ignored -> new LinkedHashMap<>()));
+    return result;
+  }
+
   /** Builds the Trinkets slot-group view from Curios' entity slot registry. */
   public static Map<String, Object> entitySlots(LivingEntity entity) {
     return entity == null ? Map.of() : entitySlots(CuriosApi.getEntitySlots(entity));
@@ -161,24 +186,15 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
       }
       String group = path.substring(0, separator);
       String name = path.substring(separator + 1);
+      SlotType trinketSlot = TrinketsCompat.apiSlotTypeForPath(path, false);
+      if (trinketSlot == null) {
+        trinketSlot = TrinketsCompat.apiSlotTypeForPath(path, true);
+      }
+      if (trinketSlot == null) {
+        continue;
+      }
       SlotGroup.Builder builder = builders.computeIfAbsent(
           group, ignored -> new SlotGroup.Builder(group, builders.size(), slot.getOrder().orElse(0)));
-      TrinketEnums.DropRule dropRule;
-      try {
-        dropRule = TrinketEnums.DropRule.valueOf(slot.getDropRule().name());
-      } catch (IllegalArgumentException exception) {
-        dropRule = TrinketEnums.DropRule.DEFAULT;
-      }
-      SlotType trinketSlot = new SlotType(
-          group,
-          name,
-          slot.getOrder().orElse(0),
-          slot.getSize(),
-          slot.getIcon(),
-          java.util.Set.of(),
-          java.util.Set.of(),
-          java.util.Set.of(),
-          dropRule);
       builder.addSlot(name, trinketSlot);
     }
 
@@ -293,18 +309,6 @@ public final class TrinketsApiFacade implements ForeignApiFacade {
         .map(handler -> handler.findCurios(stack -> true).stream()
             .map(result -> result.stack()).filter(stack -> !stack.isEmpty()).toList())
         .orElse(List.of());
-  }
-
-  /** The Trinkets group name of a {@code group/slot} path. */
-  private static String groupOf(String path) {
-    int separator = path.indexOf('/');
-    return separator < 0 ? path : path.substring(0, separator);
-  }
-
-  /** The Trinkets slot name of a {@code group/slot} path. */
-  private static String slotOf(String path) {
-    int separator = path.indexOf('/');
-    return separator < 0 ? path : path.substring(separator + 1);
   }
 
   /**

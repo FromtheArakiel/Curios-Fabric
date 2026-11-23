@@ -11,6 +11,7 @@ import dev.arakiel.curiosfabric.compat.modules.trinkets.discovery.RawTrinketSlot
 import dev.arakiel.curiosfabric.compat.modules.trinkets.discovery.TrinketsNativeMappings;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.item.TrinketCurio;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.item.TrinketItemAdapter;
+import dev.arakiel.curiosfabric.compat.modules.trinkets.runtime.TrinketsRuntimeIntegration;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.TrinketApiSlotGroupAccessor;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.TrinketApiSlotTypeAccessor;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.mixin.TrinketEntitySlotLoaderAccessor;
@@ -51,6 +52,10 @@ public final class TrinketsCompat {
   private static final ResourceLocation FALLBACK_ICON =
       ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID,
           "slot/empty_curio_slot");
+  private static final Set<ResourceLocation> DEFAULT_VALIDATORS =
+      Set.of(ResourceLocation.fromNamespaceAndPath(MOD_ID, "tag"));
+  private static final Set<ResourceLocation> DEFAULT_QUICK_MOVE_PREDICATES =
+      Set.of(ResourceLocation.fromNamespaceAndPath(MOD_ID, "all"));
   private static final Map<String, TagKey<Item>> TAG_CACHE = new ConcurrentHashMap<>();
 
   private static final State CLIENT_STATE = new State(true);
@@ -116,6 +121,7 @@ public final class TrinketsCompat {
       logMappingState(client, reason, authoritative, previous, discovered);
 
       for (TrinketSlot slot : discovered.values()) {
+        TrinketsRuntimeIntegration.registerPredicates(slot.validators);
         for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tagFor(slot.path))) {
           CuriosApi.registerCurio(holder.value(),
               TrinketItemAdapter.of(holder.value())
@@ -295,6 +301,9 @@ public final class TrinketsCompat {
           Map.copyOf(discovered),
           freezeEntityMappings(byEntity),
           Map.copyOf(reverse));
+      for (TrinketSlot slot : discovered.values()) {
+        TrinketsRuntimeIntegration.registerPredicates(slot.validators);
+      }
     }
   }
 
@@ -373,11 +382,59 @@ public final class TrinketsCompat {
       builder.icon(descriptor.icon);
     }
     if (descriptor.validators.isEmpty()) {
-      builder.validator(ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, "tag"));
+      DEFAULT_VALIDATORS.forEach(builder::validator);
     } else {
       descriptor.validators.forEach(builder::validator);
     }
     return builder.build();
+  }
+
+  /**
+   * Reconstructs the upstream Trinkets slot type, including all three predicate sets.
+   *
+   * <p>Third-party APIs and Trinkets' own tooltip hooks read these sets directly. Returning only
+   * the Curios validator subset would silently change their behavior.</p>
+   */
+  public static dev.emi.trinkets.api.SlotType apiSlotTypeForPath(
+      String path, boolean client) {
+    ensureSlots(client);
+    return toApiSlotType(state(client).snapshot.slotsByPath().get(path));
+  }
+
+  /** Reconstructs the upstream Trinkets slot type assigned to a Curios identifier. */
+  public static dev.emi.trinkets.api.SlotType apiSlotType(
+      String curiosSlot, boolean client) {
+    ensureSlots(client);
+    for (TrinketSlot slot : state(client).snapshot.slotsByPath().values()) {
+      if (slot.curiosId.equals(curiosSlot) || slot.mappingId.equals(curiosSlot)) {
+        return toApiSlotType(slot);
+      }
+    }
+    return null;
+  }
+
+  private static dev.emi.trinkets.api.SlotType toApiSlotType(TrinketSlot slot) {
+    if (slot == null) {
+      return null;
+    }
+    int separator = slot.path.indexOf('/');
+    if (separator < 1 || separator == slot.path.length() - 1) {
+      return null;
+    }
+    return new dev.emi.trinkets.api.SlotType(
+        slot.path.substring(0, separator),
+        slot.path.substring(separator + 1),
+        slot.order,
+        slot.amount,
+        slot.icon,
+        slot.quickMovePredicates,
+        slot.validators,
+        slot.tooltipPredicates,
+        slot.dropRule == ICurio.DropRule.ALWAYS_KEEP
+            ? dev.emi.trinkets.api.TrinketEnums.DropRule.KEEP
+            : slot.dropRule == ICurio.DropRule.ALWAYS_DROP
+                ? dev.emi.trinkets.api.TrinketEnums.DropRule.DROP
+                : dev.emi.trinkets.api.TrinketEnums.DropRule.valueOf(slot.dropRule.name()));
   }
 
   private static Map<String, TrinketSlot> flatten(
@@ -444,10 +501,21 @@ public final class TrinketsCompat {
                     : readDropRule(slotAccessor);
             Set<ResourceLocation> validators =
                 rawMetadata != null
-                    ? mapValidators(rawMetadata.validators())
+                    ? defaultIfEmpty(parsePredicates(rawMetadata.validators()), DEFAULT_VALIDATORS)
                     : slotAccessor.curiosfabric$getValidatorPredicates();
+            Set<ResourceLocation> quickMovePredicates =
+                rawMetadata != null
+                    ? defaultIfEmpty(parsePredicates(rawMetadata.quickMovePredicates()),
+                        DEFAULT_QUICK_MOVE_PREDICATES)
+                    : slotAccessor.curiosfabric$getQuickMovePredicates();
+            Set<ResourceLocation> tooltipPredicates =
+                rawMetadata != null
+                    ? defaultIfEmpty(parsePredicates(rawMetadata.tooltipPredicates()),
+                        DEFAULT_QUICK_MOVE_PREDICATES)
+                    : slotAccessor.curiosfabric$getTooltipPredicates();
             slots.put(path, new TrinketSlot(path, curiosId, mappingId, nativeId != null,
-                order, amount, icon, validators, dropRule));
+                order, amount, icon, validators, quickMovePredicates, tooltipPredicates,
+                dropRule));
           }
         }
         if (!slots.isEmpty()) {
@@ -470,7 +538,12 @@ public final class TrinketsCompat {
         ResourceLocation icon = ResourceLocation.tryParse(raw.icon());
         slots.put(path, new TrinketSlot(path, curiosId, mappingId, nativeId != null,
             raw.order(), Math.max(1, raw.amount()),
-            icon == null ? FALLBACK_ICON : icon, mapValidators(raw.validators()),
+            icon == null ? FALLBACK_ICON : icon,
+            defaultIfEmpty(parsePredicates(raw.validators()), DEFAULT_VALIDATORS),
+            defaultIfEmpty(parsePredicates(raw.quickMovePredicates()),
+                DEFAULT_QUICK_MOVE_PREDICATES),
+            defaultIfEmpty(parsePredicates(raw.tooltipPredicates()),
+                DEFAULT_QUICK_MOVE_PREDICATES),
             readDropRule(raw.dropRule())));
       });
       result.put(EntityType.PLAYER, slots);
@@ -542,20 +615,20 @@ public final class TrinketsCompat {
     return readDropRule(tag.getCompound("SlotData").getString("DropRule"));
   }
 
-  private static Set<ResourceLocation> mapValidators(Iterable<String> validators) {
+  static Set<ResourceLocation> parsePredicates(Iterable<String> predicates) {
     Set<ResourceLocation> result = new HashSet<>();
-    for (String validator : validators) {
-      String mapped = switch (validator) {
-        case "trinkets:all" -> "all";
-        case "trinkets:none" -> "none";
-        case "trinkets:tag", "trinkets:relevant" -> "tag";
-        default -> null;
-      };
-      if (mapped != null) {
-        result.add(ResourceLocation.fromNamespaceAndPath(CuriosFabricConstants.MOD_ID, mapped));
+    for (String predicate : predicates) {
+      ResourceLocation id = ResourceLocation.tryParse(predicate);
+      if (id != null) {
+        result.add(id);
       }
     }
     return Collections.unmodifiableSet(result);
+  }
+
+  private static Set<ResourceLocation> defaultIfEmpty(
+      Set<ResourceLocation> predicates, Set<ResourceLocation> defaults) {
+    return predicates.isEmpty() ? defaults : predicates;
   }
 
   private static TagKey<Item> tagFor(String trinketsPath) {
@@ -592,6 +665,8 @@ public final class TrinketsCompat {
   record TrinketSlot(String path, String curiosId, String mappingId, boolean nativeSlot,
                      int order, int amount,
                      ResourceLocation icon, Set<ResourceLocation> validators,
+                     Set<ResourceLocation> quickMovePredicates,
+                     Set<ResourceLocation> tooltipPredicates,
                      ICurio.DropRule dropRule) {
   }
 }

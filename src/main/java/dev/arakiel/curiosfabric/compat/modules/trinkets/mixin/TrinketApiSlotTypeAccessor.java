@@ -21,6 +21,12 @@ public interface TrinketApiSlotTypeAccessor {
   @Invoker("getValidatorPredicates")
   Set<ResourceLocation> curiosfabric$getValidatorPredicates();
 
+  @Invoker("getQuickMovePredicates")
+  Set<ResourceLocation> curiosfabric$getQuickMovePredicates();
+
+  @Invoker("getTooltipPredicates")
+  Set<ResourceLocation> curiosfabric$getTooltipPredicates();
+
   @Invoker("write")
   void curiosfabric$write(CompoundTag tag);
 }

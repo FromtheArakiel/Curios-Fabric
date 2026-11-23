@@ -1,11 +1,18 @@
 package dev.arakiel.curiosfabric.compat.modules.neoforgecurios.item;
 
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimap;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.api.SlotContext;
 import dev.arakiel.curiosfabric.api.type.ISlotType;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.NeoforgeCuriosCompat;
+import dev.arakiel.curiosfabric.compat.modules.neoforgecurios.api.NeoforgeCuriosApiFacade;
 import java.util.Set;
+import net.minecraft.core.Holder;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -44,5 +51,13 @@ public class NeoforgeCuriosItem implements ICurioItem {
   @Override
   public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
     return canEquip(slotContext, stack);
+  }
+
+  @Override
+  public Multimap<Holder<Attribute>, AttributeModifier> getAttributeModifiers(
+      SlotContext slotContext, ResourceLocation id, ItemStack stack) {
+    Multimap<Holder<Attribute>, AttributeModifier> modifiers =
+        NeoforgeCuriosApiFacade.foreignAttributeModifiers(slotContext, id, stack);
+    return modifiers == null ? LinkedHashMultimap.create() : modifiers;
   }
 }

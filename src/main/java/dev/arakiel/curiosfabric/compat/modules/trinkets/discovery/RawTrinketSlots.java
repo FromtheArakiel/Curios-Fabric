@@ -39,7 +39,9 @@ public final class RawTrinketSlots {
                 slotAccessor.curiosfabric$getAmount(),
                 slotAccessor.curiosfabric$getIcon(),
                 slotAccessor.curiosfabric$getDropRule(),
-                Set.copyOf(slotAccessor.curiosfabric$getValidatorPredicates())));
+                Set.copyOf(slotAccessor.curiosfabric$getValidatorPredicates()),
+                Set.copyOf(slotAccessor.curiosfabric$getQuickMovePredicates()),
+                Set.copyOf(slotAccessor.curiosfabric$getTooltipPredicates())));
           }
         });
       });
@@ -51,6 +53,7 @@ public final class RawTrinketSlots {
   }
 
   public record RawSlot(int order, int amount, String icon, String dropRule,
-                        Set<String> validators) {
+                        Set<String> validators, Set<String> quickMovePredicates,
+                        Set<String> tooltipPredicates) {
   }
 }

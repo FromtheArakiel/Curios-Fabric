@@ -4,18 +4,19 @@
   "compatibilityLevel": "JAVA_21",
   "plugin": "dev.arakiel.curiosfabric.compat.mixin.CompatMixinPlugin",
   "mixins": [
-    "TrinketCreativeSlotMixin",
     "TrinketApiSlotGroupAccessor",
     "TrinketApiSlotTypeAccessor",
     "TrinketComponentMixin",
     "TrinketEntitySlotLoaderAccessor",
-    "TrinketInventorySlotMixin",
+    "TrinketPlayerScreenHandlerMixin",
     "TrinketScreenManagerMixin",
     "TrinketGroupDataAccessor",
     "TrinketSlotDataAccessor",
     "TrinketSlotLoaderAccessor",
-    "TrinketSlotAccessor",
     "TrinketsApiMixin"
+  ],
+  "client": [
+    "TrinketFeatureRendererMixin"
   ],
   "minVersion": "0.8"
 }

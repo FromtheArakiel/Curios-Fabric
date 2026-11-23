@@ -210,6 +210,11 @@ public class NeoforgeCuriosItemAdapter implements ICurioItem {
   @Override
   public Multimap<Holder<Attribute>, AttributeModifier> getAttributeModifiers(
       SlotContext slotContext, ResourceLocation id, ItemStack stack) {
+    Multimap<Holder<Attribute>, AttributeModifier> componentModifiers =
+        NeoforgeCuriosApiFacade.foreignAttributeModifiers(slotContext, id, stack);
+    if (componentModifiers != null) {
+      return componentModifiers;
+    }
     Object result = call("getAttributeModifiers", 3, context(slotContext), id, stack);
 
     if (result instanceof Multimap<?, ?> multimap) {

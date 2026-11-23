@@ -21,4 +21,10 @@ public interface TrinketSlotDataAccessor {
 
   @Accessor(value = "validatorPredicates", remap = false)
   Set<String> curiosfabric$getValidatorPredicates();
+
+  @Accessor(value = "quickMovePredicates", remap = false)
+  Set<String> curiosfabric$getQuickMovePredicates();
+
+  @Accessor(value = "tooltipPredicates", remap = false)
+  Set<String> curiosfabric$getTooltipPredicates();
 }

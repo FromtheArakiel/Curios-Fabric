@@ -1,18 +1,23 @@
 package dev.arakiel.curiosfabric.compat.modules.trinkets.item;
 
+import com.google.common.collect.Multimap;
 import dev.arakiel.curiosfabric.api.SlotContext;
+import dev.arakiel.curiosfabric.api.type.capability.ICurio;
 import dev.arakiel.curiosfabric.api.type.capability.ICurioItem;
 import dev.arakiel.curiosfabric.compat.modules.trinkets.TrinketsCompat;
+import net.minecraft.core.Holder;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * {@link ICurioItem} bridge used for items that were written against Trinkets.
  *
- * <p>Only the slot validity has to be translated: Trinkets items store their bonuses in the vanilla
- * {@code minecraft:attribute_modifiers} component (Trinkets applies them through the same component),
- * and Curios merges that component into the worn attributes as well, so attributes carry over
- * without extra work. Everything else (ticking, equip/unequip hooks, drop rules) has no Trinkets
- * counterpart and keeps the Curios defaults.</p>
+ * <p>This adapter is for items qualified only by Trinkets slot tags. Code-backed items use
+ * {@link TrinketItemAdapter}. Tag-only items retain Trinkets' original behavior: they can be put in
+ * a slot, but do not automatically equip from use. Global lifecycle and drop callbacks still run.</p>
  */
 public enum TrinketCurio implements ICurioItem {
   INSTANCE;
@@ -24,7 +29,30 @@ public enum TrinketCurio implements ICurioItem {
 
   @Override
   public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
-    return mapsTo(slotContext.identifier(), stack, side(slotContext));
+    return false;
+  }
+
+  @Override
+  public void onEquip(SlotContext slotContext, ItemStack prevStack, ItemStack stack) {
+    TrinketLifecycleCallbacks.onEquip(slotContext, stack);
+  }
+
+  @Override
+  public void onUnequip(SlotContext slotContext, ItemStack newStack, ItemStack stack) {
+    TrinketLifecycleCallbacks.onUnequip(slotContext, stack);
+  }
+
+  @Override
+  public ICurio.DropRule getDropRule(SlotContext slotContext, DamageSource source,
+                                     int lootingLevel, boolean recentlyHit, ItemStack stack) {
+    return TrinketLifecycleCallbacks.applyDropCallback(
+        slotContext, stack, ICurio.DropRule.DEFAULT);
+  }
+
+  @Override
+  public Multimap<Holder<Attribute>, AttributeModifier> getAttributeModifiers(
+      SlotContext slotContext, ResourceLocation id, ItemStack stack) {
+    return TrinketItemAdapter.componentModifiers(stack, side(slotContext));
   }
 
   /** {@code true} when the stack is registered for the given Curios slot through Trinkets' tags. */
