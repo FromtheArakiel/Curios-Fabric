@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "饰品",
+  "gui.curiosfabric.page": "第 %d / %d 页",
   "curiosfabric.name": "饰品",
   "curiosfabric.slot": "栏位",
   "curiosfabric.tooltip.slot": "栏位:",

@@ -2,7 +2,6 @@ package dev.arakiel.curiosfabric.client.gui;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.datafixers.util.Pair;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,8 +18,6 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Tuple;
@@ -49,8 +46,7 @@ public class CuriosScreen extends EffectRenderingInventoryScreen<CuriosContainer
     implements RecipeUpdateListener, ICuriosScreen {
 
   static final ResourceLocation CURIO_INVENTORY =
-      ResourceLocation.fromNamespaceAndPath(
-          CuriosFabricConstants.MOD_ID, "textures/gui/curios/inventory.png");
+      CuriosGuiTextures.INVENTORY;
 
   private final RecipeBookComponent recipeBookGui = new RecipeBookComponent();
   private final Map<String, List<ItemStack>> indexedDisplays = new HashMap<>();
@@ -511,22 +507,7 @@ public class CuriosScreen extends EffectRenderingInventoryScreen<CuriosContainer
     guiGraphics.pose().translate(0.0F, 0.0F, 100.0F);
 
     if (itemstack.isEmpty() && slot.isActive() && this.minecraft != null) {
-      Pair<ResourceLocation, ResourceLocation> pair = slot.getNoItemIcon();
-
-      if (pair != null) {
-        TextureAtlasSprite textureatlassprite =
-            this.minecraft.getTextureAtlas(pair.getFirst()).apply(pair.getSecond());
-        if (textureatlassprite.contents().name().equals(MissingTextureAtlasSprite.getLocation())) {
-          ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(
-              pair.getSecond().getNamespace(),
-              "textures/" + pair.getSecond().getPath() + ".png");
-          if (this.minecraft.getTextureManager().getTexture(texture)
-              != MissingTextureAtlasSprite.getTexture()) {
-            guiGraphics.blit(texture, i, j, 0, 0, 16, 16, 16, 16);
-          }
-        } else {
-          guiGraphics.blit(i, j, 0, 16, 16, textureatlassprite);
-        }
+      if (CurioSlotIcons.render(guiGraphics, this.minecraft, slot)) {
         flag1 = true;
       }
     }

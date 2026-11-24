@@ -13,8 +13,11 @@ import dev.arakiel.curiosfabric.client.CuriosFabricClientConfig;
 import dev.arakiel.curiosfabric.client.IconHelper;
 import dev.arakiel.curiosfabric.client.KeyRegistry;
 import dev.arakiel.curiosfabric.client.gui.CuriosScreen;
+import dev.arakiel.curiosfabric.client.gui.CuriosTabNavigationEvents;
+import dev.arakiel.curiosfabric.client.gui.CuriosTabScreen;
 import dev.arakiel.curiosfabric.client.gui.GuiEventHandler;
 import dev.arakiel.curiosfabric.client.render.CuriosLayer;
+import dev.arakiel.curiosfabric.client.tab.CuriosTabClient;
 import dev.arakiel.curiosfabric.common.CuriosFabricRegistry;
 
 /**
@@ -46,5 +49,8 @@ public class CuriosFabricClient implements ClientModInitializer {
 
     CuriosRendererRegistry.load();
     MenuScreens.register(CuriosFabricRegistry.CURIO_MENU.get(), CuriosScreen::new);
+    MenuScreens.register(CuriosFabricRegistry.CURIO_TAB_MENU.get(), CuriosTabScreen::new);
+    CuriosTabClient.register();
+    CuriosTabNavigationEvents.register();
   }
 }

@@ -23,11 +23,13 @@ import dev.arakiel.curiosfabric.api.type.capability.ICuriosItemHandler;
 import dev.arakiel.curiosfabric.api.type.inventory.IDynamicStackHandler;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainer;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainerProvider;
+import dev.arakiel.curiosfabric.common.inventory.container.CuriosTabMenuProvider;
 import dev.arakiel.curiosfabric.common.event.CuriosFabricEventHandler;
 import dev.arakiel.curiosfabric.common.inventory.InventoryOperationPolicy;
 import dev.arakiel.curiosfabric.common.network.NetworkHandler;
 import dev.arakiel.curiosfabric.common.network.client.CPacketDestroy;
 import dev.arakiel.curiosfabric.common.network.client.CPacketOpenCurios;
+import dev.arakiel.curiosfabric.common.network.client.CPacketOpenCuriosTab;
 import dev.arakiel.curiosfabric.common.network.client.CPacketOpenVanilla;
 import dev.arakiel.curiosfabric.common.network.client.CPacketPage;
 import dev.arakiel.curiosfabric.common.network.client.CPacketToggleCosmetics;
@@ -112,6 +114,20 @@ public class CuriosFabricServerPayloadHandler {
       // client builds the menu from the same dynamic slot set as the server.
       if (CuriosFabricEventHandler.syncBeforeOpen(serverPlayer)) {
         player.openMenu(new CuriosContainerProvider());
+        if (!stack.isEmpty()) {
+          player.containerMenu.setCarried(stack);
+          NetworkHandler.sendToPlayer(serverPlayer, new SPacketGrabbedItem(stack));
+        }
+      }
+    }
+  }
+
+  public void handleOpenCuriosTab(final CPacketOpenCuriosTab data, final Player player) {
+    if (player instanceof ServerPlayer serverPlayer) {
+      ItemStack stack = player.containerMenu.getCarried();
+      player.containerMenu.setCarried(ItemStack.EMPTY);
+      if (CuriosFabricEventHandler.syncBeforeOpen(serverPlayer)) {
+        player.openMenu(new CuriosTabMenuProvider(Math.max(0, data.page())));
         if (!stack.isEmpty()) {
           player.containerMenu.setCarried(stack);
           NetworkHandler.sendToPlayer(serverPlayer, new SPacketGrabbedItem(stack));

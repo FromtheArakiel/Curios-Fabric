@@ -2,6 +2,7 @@ package dev.arakiel.curiosfabric.common.network;
 
 import dev.arakiel.curiosfabric.common.network.client.CPacketDestroy;
 import dev.arakiel.curiosfabric.common.network.client.CPacketOpenCurios;
+import dev.arakiel.curiosfabric.common.network.client.CPacketOpenCuriosTab;
 import dev.arakiel.curiosfabric.common.network.client.CPacketOpenVanilla;
 import dev.arakiel.curiosfabric.common.network.client.CPacketPage;
 import dev.arakiel.curiosfabric.common.network.client.CPacketToggleCosmetics;
@@ -42,6 +43,8 @@ public final class NetworkHandler {
         (payload, player) -> server.handleDestroyPacket(payload, player));
     channel.registerServerbound(CPacketOpenCurios.class, CPacketOpenCurios.STREAM_CODEC,
         (payload, player) -> server.handleOpenCurios(payload, player));
+    channel.registerServerbound(CPacketOpenCuriosTab.class, CPacketOpenCuriosTab.STREAM_CODEC,
+        (payload, player) -> server.handleOpenCuriosTab(payload, player));
     channel.registerServerbound(CPacketOpenVanilla.class, CPacketOpenVanilla.STREAM_CODEC,
         (payload, player) -> server.handleOpenVanilla(payload, player));
     channel.registerServerbound(CPacketPage.class, CPacketPage.STREAM_CODEC,

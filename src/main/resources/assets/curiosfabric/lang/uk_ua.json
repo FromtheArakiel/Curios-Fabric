@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "Прикраси",
+  "gui.curiosfabric.page": "Сторінка %d / %d",
   "curiosfabric.name": "Curios",
   "curiosfabric.slot": "Слот",
   "curiosfabric.tooltip.slot": "Слот:",

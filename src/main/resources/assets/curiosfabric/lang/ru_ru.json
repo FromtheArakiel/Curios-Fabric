@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "Украшения",
+  "gui.curiosfabric.page": "Страница %d / %d",
   "curiosfabric.name": "Curios",
   "curiosfabric.slot": "Слот",
   "curiosfabric.tooltip.slot": "Слот:",

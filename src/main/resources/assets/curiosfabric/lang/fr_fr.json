@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "Accessoires",
+  "gui.curiosfabric.page": "Page %d / %d",
   "curiosfabric.name": "Curios",
   "curiosfabric.slot": "Case",
   "curiosfabric.tooltip.slot": "Case:",

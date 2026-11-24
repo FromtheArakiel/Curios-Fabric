@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "Accesorios",
+  "gui.curiosfabric.page": "Página %d / %d",
   "curiosfabric.name": "Curios",
   "curiosfabric.slot": "Ranuras",
   "curiosfabric.tooltip.slot": "Ranuras:",

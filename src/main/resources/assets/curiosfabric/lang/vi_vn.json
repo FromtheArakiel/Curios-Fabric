@@ -1,4 +1,6 @@
 {
+    "menu.tabs.curios": "Trang sức",
+    "gui.curiosfabric.page": "Trang %d / %d",
     "curiosfabric.name": "Phụ Kiện",
     "curiosfabric.slot": "Vị Trí",
     "curiosfabric.tooltip.slot": "Vị Trí:",

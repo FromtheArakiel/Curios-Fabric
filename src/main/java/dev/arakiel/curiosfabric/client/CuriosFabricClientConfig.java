@@ -30,6 +30,9 @@ public final class CuriosFabricClientConfig {
     @ConfigEntry(value = "enable_button")
     public boolean enableButton = true;
 
+    @ConfigEntry(value = "enable_tab")
+    public boolean enableTab = true;
+
     @ConfigEntry(value = "button_x_offset")
     @Range(min = -100, max = 100)
     public int buttonXOffset = 0;

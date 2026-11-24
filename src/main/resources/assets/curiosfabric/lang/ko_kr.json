@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "장신구",
+  "gui.curiosfabric.page": "페이지 %d / %d",
   "curiosfabric.name": "장신구",
   "curiosfabric.slot": "슬롯",
   "curiosfabric.tooltip.slot": "슬롯:",

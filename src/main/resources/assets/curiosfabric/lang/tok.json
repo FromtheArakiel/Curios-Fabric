@@ -1,4 +1,6 @@
 {
+  "menu.tabs.curios": "ante Curios",
+  "gui.curiosfabric.page": "lipu %d / %d",
   "curiosfabric.name": "ante Curios",
   "curiosfabric.slot": "poki",
   "curiosfabric.tooltip.slot": "li ken lon",
@@ -43,6 +45,5 @@
   "key.curiosfabric.category": "ante Curios",
   "key.curiosfabric.open.desc": "o open anu pini e kulupu pi poki nasa",
   "gui.curiosfabric.toggle": "o ante e ken lukin",
-  "gui.curiosfabric.toggle.cosmetics": "o ante e ken lukin pi ijo pi lukin taso",
-  "gui.curiosfabric.page": "kulupu nanpa %d / %d"
+  "gui.curiosfabric.toggle.cosmetics": "o ante e ken lukin pi ijo pi lukin taso"
 }

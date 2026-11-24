@@ -6,13 +6,16 @@ import net.minecraft.commands.synchronization.SingletonArgumentInfo;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.storage.loot.functions.LootItemFunctionType;
+import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import dev.arakiel.curiosfabric.api.CurioAttributeModifiers;
 import dev.arakiel.curiosfabric.api.CuriosApi;
 import dev.arakiel.curiosfabric.common.inventory.container.CuriosContainer;
+import dev.arakiel.curiosfabric.common.inventory.container.CuriosTabMenu;
 import dev.arakiel.curiosfabric.common.util.Deferred;
 import dev.arakiel.curiosfabric.common.util.EquipCurioTrigger;
 import dev.arakiel.curiosfabric.common.util.SetCurioAttributesFunction;
@@ -29,6 +32,7 @@ public class CuriosFabricRegistry {
 
   public static final Deferred<ArgumentTypeInfo<?, ?>> CURIO_SLOT_ARGUMENT = new Deferred<>();
   public static final Deferred<MenuType<CuriosContainer>> CURIO_MENU = new Deferred<>();
+  public static final Deferred<MenuType<CuriosTabMenu>> CURIO_TAB_MENU = new Deferred<>();
   public static final Deferred<LootItemFunctionType<SetCurioAttributesFunction>> CURIO_ATTRIBUTES =
       new Deferred<>();
   public static final Deferred<EquipCurioTrigger> EQUIP_TRIGGER = new Deferred<>();
@@ -54,6 +58,11 @@ public class CuriosFabricRegistry {
         new MenuType<>(CuriosContainer::new, FeatureFlags.VANILLA_SET);
     CURIO_MENU.set(menuType);
     Registry.register(BuiltInRegistries.MENU, id("curios_container"), menuType);
+
+    ExtendedScreenHandlerType<CuriosTabMenu, Integer> tabMenuType =
+        new ExtendedScreenHandlerType<>(CuriosTabMenu::new, ByteBufCodecs.VAR_INT);
+    CURIO_TAB_MENU.set(tabMenuType);
+    Registry.register(BuiltInRegistries.MENU, id("curios_tab"), tabMenuType);
 
     LootItemFunctionType<SetCurioAttributesFunction> attributeFunction =
         new LootItemFunctionType<>(SetCurioAttributesFunction.CODEC);
