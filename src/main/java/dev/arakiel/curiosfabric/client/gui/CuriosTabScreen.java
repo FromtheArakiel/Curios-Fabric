@@ -13,7 +13,6 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -46,20 +45,19 @@ public class CuriosTabScreen extends AbstractContainerScreen<CuriosTabMenu>
         leftPos + CuriosTabLayout.previousPageButtonX(font.width(title));
     int nextButtonX =
         leftPos + CuriosTabLayout.nextPageButtonX(font.width(title));
-    if (menu.currentPage() > 0) {
-      addRenderableWidget(Button.builder(Component.literal("<"),
-              button -> CuriosScreenNavigator.openTab(minecraft.player, menu.currentPage() - 1))
-          .pos(previousButtonX, buttonY)
-          .size(CuriosTabLayout.PAGE_BUTTON_WIDTH, CuriosTabLayout.PAGE_BUTTON_HEIGHT)
-          .build());
-    }
-    if (menu.currentPage() < menu.totalPages() - 1) {
-      addRenderableWidget(Button.builder(Component.literal(">"),
-              button -> CuriosScreenNavigator.openTab(minecraft.player, menu.currentPage() + 1))
-          .pos(nextButtonX, buttonY)
-          .size(CuriosTabLayout.PAGE_BUTTON_WIDTH, CuriosTabLayout.PAGE_BUTTON_HEIGHT)
-          .build());
-    }
+    Component pageTooltip = Component.translatable(
+        "gui.curiosfabric.page", menu.currentPage() + 1, menu.totalPages());
+    CuriosPageButton previous = new CuriosPageButton(
+        previousButtonX, buttonY, false, pageTooltip,
+        button -> CuriosScreenNavigator.openTab(minecraft.player, menu.currentPage() - 1));
+    previous.setAvailable(menu.currentPage() > 0);
+    addRenderableWidget(previous);
+
+    CuriosPageButton next = new CuriosPageButton(
+        nextButtonX, buttonY, true, pageTooltip,
+        button -> CuriosScreenNavigator.openTab(minecraft.player, menu.currentPage() + 1));
+    next.setAvailable(menu.currentPage() < menu.totalPages() - 1);
+    addRenderableWidget(next);
 
     renderButtons.clear();
     for (Slot slot : menu.slots) {
@@ -96,9 +94,7 @@ public class CuriosTabScreen extends AbstractContainerScreen<CuriosTabMenu>
       renderButton.renderButtonOverlay(graphics, mouseX, mouseY, partialTick);
     }
     isRenderButtonHovered = hoveredButton;
-    if (hoveredButton) {
-      renderTooltip(graphics, mouseX, mouseY);
-    }
+    renderTooltip(graphics, mouseX, mouseY);
   }
 
   @Override
@@ -133,6 +129,9 @@ public class CuriosTabScreen extends AbstractContainerScreen<CuriosTabMenu>
 
   @Override
   protected void renderTooltip(@Nonnull GuiGraphics graphics, int mouseX, int mouseY) {
+    if (!menu.getCarried().isEmpty()) {
+      return;
+    }
     if (isRenderButtonHovered) {
       graphics.renderTooltip(
           font, Component.translatable("gui.curiosfabric.toggle"), mouseX, mouseY);

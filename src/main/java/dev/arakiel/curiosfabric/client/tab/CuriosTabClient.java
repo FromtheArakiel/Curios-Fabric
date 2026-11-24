@@ -1,7 +1,6 @@
 package dev.arakiel.curiosfabric.client.tab;
 
 import dev.arakiel.curiosfabric.CuriosFabricConstants;
-import dev.arakiel.curiosfabric.client.CuriosFabricClientConfig;
 import dev.arakiel.curiosfabric.client.gui.CuriosGuiTextures;
 import dev.arakiel.curiosfabric.client.gui.CuriosScreenNavigator;
 import dev.arakiel.curiosfabric.client.gui.CuriosTabScreen;
@@ -25,8 +24,7 @@ public final class CuriosTabClient {
         .title(Component.translatable("menu.tabs.curios"))
         .icon(TabIcon.sprite(CuriosGuiTextures.TAB_ICON))
         .order(TabOrder.anchored(2000))
-        .visibleWhen(context -> context.player() != null
-            && CuriosFabricClientConfig.CLIENT.value().enableTab)
+        .visibleWhen(context -> context.player() != null)
         .selectedWhen(context -> context.screen() instanceof CuriosTabScreen)
         .action(context -> {
           if (!(context.screen() instanceof CuriosTabScreen)

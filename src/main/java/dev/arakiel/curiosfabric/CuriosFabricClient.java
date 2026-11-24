@@ -50,7 +50,9 @@ public class CuriosFabricClient implements ClientModInitializer {
     CuriosRendererRegistry.load();
     MenuScreens.register(CuriosFabricRegistry.CURIO_MENU.get(), CuriosScreen::new);
     MenuScreens.register(CuriosFabricRegistry.CURIO_TAB_MENU.get(), CuriosTabScreen::new);
-    CuriosTabClient.register();
-    CuriosTabNavigationEvents.register();
+    if (CuriosFabricClientConfig.CLIENT.value().enableTab) {
+      CuriosTabClient.register();
+      CuriosTabNavigationEvents.register();
+    }
   }
 }
